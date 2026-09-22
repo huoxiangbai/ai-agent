@@ -60,18 +60,22 @@ Thumbs.db
 *.tmp
 *.swp
 
-# 本地 Agent / Spec 工作流资产不纳入版本控制
+# 本地 Agent / Spec 工作流资产默认不纳入版本控制；根 AGENTS.md 是共享规范
 /.agents/
 /.claude/
 /.codex/
 /.specify/
 /.omo/
 /CLAUDE.md
-/AGENTS.md
+!/AGENTS.md
 /PROMPT_CONTEXT_MEMORY_REARCH.md
 /specs/
 /openspec/
 /docs/
+!/docs/
+/docs/*
+!/docs/python-migration/
+!/docs/python-migration/**
 
 # 敏感配置与本地运行文件不纳入版本控制
 /mcp-server-csdn/
