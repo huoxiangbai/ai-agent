@@ -1,0 +1,29 @@
+name: Python backend
+
+on:
+  pull_request:
+    paths:
+      - "backend-python/**"
+      - ".github/workflows/python-backend.yml"
+  push:
+    paths:
+      - "backend-python/**"
+      - ".github/workflows/python-backend.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+          python-version: "3.11"
+      - working-directory: backend-python
+        run: uv sync --frozen --all-groups
+      - working-directory: backend-python
+        run: uv run ruff check .
+      - working-directory: backend-python
+        run: uv run mypy src
+      - working-directory: backend-python
+        run: uv run pytest -m "not integration"

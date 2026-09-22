@@ -1,0 +1,47 @@
+{
+  "cases": [
+    {
+      "name": "visitor-bootstrap",
+      "method": "GET",
+      "path": "/api/agent/visitor/bootstrap",
+      "normalization": {
+        "ignored_json_pointers": ["/data/visitorId"],
+        "ignored_cookie_values": ["ai_agent_visitor_token"]
+      }
+    },
+    {
+      "name": "featured-home-default",
+      "method": "GET",
+      "path": "/api/agent/featured-conversations/home"
+    },
+    {
+      "name": "featured-list-first-page",
+      "method": "GET",
+      "path": "/api/agent/featured-conversations",
+      "query": {"pageNo": "1", "pageSize": "20"}
+    },
+    {
+      "name": "featured-detail-fixture",
+      "method": "GET",
+      "path": "/api/agent/featured-conversations/${CONTRACT_FEATURED_ID}"
+    },
+    {
+      "name": "conversation-session-list",
+      "method": "GET",
+      "path": "/api/agent/conversation/sessions",
+      "query": {"limit": "20"},
+      "headers": {"Cookie": "ai_agent_visitor_token=${CONTRACT_VISITOR_TOKEN}"}
+    },
+    {
+      "name": "conversation-session-detail",
+      "method": "GET",
+      "path": "/api/agent/conversation/sessions/${CONTRACT_SESSION_ID}",
+      "headers": {"Cookie": "ai_agent_visitor_token=${CONTRACT_VISITOR_TOKEN}"}
+    },
+    {
+      "name": "session-capabilities",
+      "method": "GET",
+      "path": "/api/agent/session/${CONTRACT_SESSION_ID}/capabilities"
+    }
+  ]
+}

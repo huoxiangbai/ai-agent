@@ -1,0 +1,39 @@
+name: Java baseline
+
+on:
+  pull_request:
+    paths:
+      - "pom.xml"
+      - "Reactor-agent-*/**"
+      - ".github/workflows/java-baseline.yml"
+  push:
+    paths:
+      - "pom.xml"
+      - "Reactor-agent-*/**"
+      - ".github/workflows/java-baseline.yml"
+
+jobs:
+  stable-modules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Gate on currently stable modules
+        run: mvn -B -pl Reactor-agent-case -am -DskipTests=false test
+
+  legacy-application-baseline:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Keep all legacy application failures visible
+        run: mvn -B -DskipTests=false test

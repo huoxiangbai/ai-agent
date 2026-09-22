@@ -114,6 +114,37 @@ services:
       reactor-tool:
         condition: service_healthy
 
+  reactor-backend-python:
+    build:
+      context: .
+      dockerfile: backend-python/Dockerfile
+    restart: unless-stopped
+    environment:
+      REACTOR_PY_ENVIRONMENT: prod
+      REACTOR_PY_HOST: 0.0.0.0
+      REACTOR_PY_PORT: 8200
+      REACTOR_PY_MYSQL_HOST: mysql
+      REACTOR_PY_MYSQL_PORT: 3306
+      REACTOR_PY_MYSQL_DATABASE: ${MYSQL_DATABASE:-ai-agent-station}
+      REACTOR_PY_MYSQL_USER: ${MYSQL_USER:-reactor}
+      REACTOR_PY_MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+    ports:
+      - "${PYTHON_BACKEND_PORT:-8200}:8200"
+    volumes:
+      - reactor-data:/data
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8200/internal/health/ready', timeout=3)
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
   frontend:
     build:
       context: .

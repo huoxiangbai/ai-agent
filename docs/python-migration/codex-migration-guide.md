@@ -24,7 +24,7 @@
 - Phase 2 契约实验室：进行中。
 - Phase 3 及以后：尚未开始业务迁移。
 
-仓库当前有约 816 个生产 Java 文件、108 条方法路由、6 条 SSE 路由、33 张 MySQL 表和 30 个 XML Mapper。Python 主后端目前只有健康检查、配置、日志、数据库生命周期和契约工具，没有公共业务路由。
+仓库当前有约 816 个生产 Java 文件、108 条方法路由、33 张 MySQL 表和 29 个 MyBatis Mapper XML（外加 1 个 `mybatis-config.xml`）。SSE 口径有两种：6 个 handler 声明 `produces=text/event-stream`，其中 **5 条是真实 `SseEmitter` 流**（`/web/health` 只声明了媒体类型，返回单次普通 `ok` 响应体）。Python 主后端目前只有健康检查、配置、日志、数据库生命周期和契约工具，没有公共业务路由。
 
 当前 Python 基线为 15 个非 integration 测试通过，Ruff 与 strict mypy 通过。Java 全量 app 基线存在 12 个 failure 和 53 个 error，这些是已登记债务，不能把全量 Java 测试误称为绿色，也不能用它们掩盖迁移新增回归。
 
@@ -141,18 +141,16 @@ P0/P1 已基本完成，当前必须先完成 P2，而不是直接大量生成 P
 - 对有效 Cookie 更新 `last_seen_at`、IP 和 User-Agent；
 - 对缺失/失效 Cookie 插入 visitor 并返回 `Set-Cookie`。
 
-因此这些接口属于身份写入所有权问题，应进入 P4 或先设计可信内部身份边界。
+因此这些接口属于身份写入所有权问题，应进入 P4 或先设计可信内部身份边界。（口径已于 2026-09-22 定案：**这三组 GET 全部归 P4**，`inventory.md` 与 `database-ownership.md` 已对齐。补充事实：`/api/agent/session/{id}/capabilities` GET **不受** `VisitorIdentityFilter` 保护，且是纯读；它离开 P3 是保守归组，不是身份写入要求，后续若需可单独论证提级。）
 
 ## 不能拆分的原子族
 
-以下路由共同依赖进程内 run owner，公开切换时必须保持相同上游：
+以下路由共同依赖进程内 run owner，公开切换时必须保持相同上游。**按整族处理，不只按「与活跃 run 相关的操作」子集**——`/pending`、`/cancel` 等看似独立的端点同样依赖同一个 pending registry 与 run owner：
 
 - `/web/api/v1/gpt/queryAgentStreamIncr`
-- `/api/agent/run/stop`
-- `/api/agent/run/inject`
-- `/api/agent/run/follow`
-- `/api/agent/ask-user/*` 中与活跃 run 相关的操作
-- `/api/agent/plan-approval/*` 中与活跃 run 相关的操作
+- `/api/agent/run/*`（`stop`、`inject`、`follow`）
+- `/api/agent/ask-user/*`（`answer`、`resume`、`pending`、`cancel`）
+- `/api/agent/plan-approval/*`（`approve`、`reject`、`resume`、`pending`、`cancel`）
 
 随机按请求做百分比分流会使控制请求找不到 run。P9 必须按 `ai_agent_visitor_token` 做稳定 cohort；Python 发起的活跃 run 在回滚时应先 drain，紧急情况下显式失败并让用户重试，不能伪装成 Java 已无损接管。
 

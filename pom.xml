@@ -35,6 +35,8 @@
         <java.version>21</java.version>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Tests are part of the migration compatibility gate; callers may still opt out with -DskipTests=true. -->
+        <skipTests>false</skipTests>
     </properties>
 
     <developers>
@@ -204,7 +206,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.0.0-M7</version>
                 <configuration>
-                    <skipTests>true</skipTests>
+                    <skipTests>${skipTests}</skipTests>
                 </configuration>
             </plugin>
         </plugins>

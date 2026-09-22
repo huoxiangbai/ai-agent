@@ -479,7 +479,7 @@ pnpm dev
 
 ### Docker Compose 部署
 
-仓库根目录的 `Dockerfile` 与 `docker-compose.yml` 是当前唯一的容器部署入口，包含 MySQL、Java Backend、`reactor-tool` API/sandbox 进程和 Nginx 前端反代。
+仓库根目录的 `Dockerfile` 与 `docker-compose.yml` 是当前唯一的容器部署入口，包含 MySQL、Java Backend、Python 共存后端 `reactor-backend-python`（端口 `${PYTHON_BACKEND_PORT:-8200}`）、`reactor-tool` API/sandbox 进程和 Nginx 前端反代。Python 后端目前只提供 `/internal/health/live` 与 `/internal/health/ready`，尚未接入 Nginx 路由，仅供 Java → Python 迁移共存验证使用。
 
 ```bash
 cp reactor-tool/.env_template reactor-tool/.env

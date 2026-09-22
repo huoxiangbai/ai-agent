@@ -54,7 +54,7 @@
 - 切换任何写路由前，先在 `database-ownership.md` 记录到操作粒度的所有权，再部署 Python 写入者，最后切换精确路由。回滚时先把路由切回 Java，再恢复 Java 写入。
 - 保留现有事务语义、条件更新/CAS、生成键、空值和时区行为。零行 CAS 更新表示冲突或幂等重复，不得当作无条件成功。
 - Ledger 的 start/finish 是两个生命周期写入；禁止让数据库事务跨越长时间 LLM、工具或网络调用。
-- Schema 变更不属于常规迁移；未经明确批准不得改表。获批后使用 Alembic 和单独的上线/回滚方案。
+- Schema 变更不属于常规迁移；未经明确批准不得改表。当前仓库的实际迁移实践是 `db/migrations/*.sql` 下的经审阅纯 SQL；**Alembic 尚未引入**（无配置、无依赖）。获批改表时，要么在独立任务中先引入 Alembic 并附上/下线与回滚方案，要么明确批准继续使用经审阅的纯 SQL 迁移。
 
 ### 访客 GET 的写副作用
 
@@ -79,11 +79,14 @@ uv run ruff check .
 uv run mypy src
 ```
 
-仅在显式配置专用依赖后运行集成测试：
+仅在显式配置专用测试库后运行集成测试（`TEST_MYSQL_URL` 是必需的门控变量，缺失时测试自行 skip）：
 
 ```bash
-uv run pytest -m integration
+TEST_MYSQL_URL='mysql+asyncmy://<test-user>:<test-password>@127.0.0.1:3306/<test-db>?charset=utf8mb4' \
+  uv run pytest -m integration
 ```
+
+不得把生产凭证写入该变量、命令历史或任何报告。
 
 Java/Python HTTP 契约比较（需要两个服务和确定性测试夹具）：
 
@@ -103,11 +106,24 @@ SSE 使用 `uv run reactor-sse-contract ...` 单独比较，并使用已检入�
 mvn -B -pl Reactor-agent-case -am -DskipTests=false test
 ```
 
-完整 Java app 套件当前存在已登记的历史失败；必须如实报告，不得重新跳过或把它误称为全绿。涉及 Compose 时还应运行：
+注意该命令只构建 parent/api/types/domain/case 五个模块，**不编译 `Reactor-agent-trigger`（全部 HTTP 路由）与 `Reactor-agent-infrastructure`（全部 mapper）**。改动这两个模块时必须另行编译验证（见 `risk-register.md` R-25）。
+
+完整 Java app 套件当前存在已登记的历史失败；必须如实报告，不得重新跳过或把它误称为全绿。涉及 Compose 时先做语法校验：
 
 ```bash
 MYSQL_PASSWORD=test-only MYSQL_ROOT_PASSWORD=test-only docker compose config --quiet
 ```
+
+需要共存基线冒烟时（可重复执行的 Compose smoke；只用 test-only 凭证）：
+
+```bash
+docker compose up -d
+curl -fsS http://127.0.0.1:8200/internal/health/live
+curl -fsS http://127.0.0.1:8200/internal/health/ready
+docker compose down
+```
+
+`config --quiet` 只校验 YAML，**不等于冒烟**。两条 health 都返回 200 才算 smoke 通过；`ready` 在 MySQL 就绪前返回 503 是预期的 fail-closed 行为。
 
 根据改动范围补充单元、集成、契约、并发、故障和回滚测试；不能运行的门禁需说明原因、已运行证据和剩余风险。
 
