@@ -7,6 +7,7 @@ the JSON body.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
@@ -16,6 +17,27 @@ from fastapi.testclient import TestClient
 from reactor_backend.api.coercion import CoercionError, coerce_int
 from reactor_backend.config import Settings
 from reactor_backend.main import create_app
+
+
+def assert_spring_error_body(response: Any, status: int, path: str) -> None:
+    """Pin the measured ``BasicErrorController`` shape.
+
+    Measured 2026-09-23 against Java ``--spring.profiles.active=prod``: exactly
+    ``timestamp, status, error, path`` in that order, UTC millis with ``+00:00``,
+    ``error`` equal to the HTTP reason phrase, ``path`` = request URI sans query.
+    Timestamp is compared structurally, not value-equal (it is ``now``).
+    """
+    body = response.json()
+    assert list(body) == ["timestamp", "status", "error", "path"], body
+    assert body["status"] == status
+    assert body["error"] == response.reason_phrase
+    assert body["path"] == path
+    # 2026-09-23T10:08:05.470+00:00 — millisecond precision, '+00:00', never 'Z'.
+    assert re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}\+00:00", body["timestamp"]
+    ), body["timestamp"]
+    assert "detail" not in body
+    assert "code" not in body
 
 
 class FakeFeaturedUseCase:
@@ -102,8 +124,7 @@ def test_home_non_numeric_limit_is_400_not_422() -> None:
 
     assert response.status_code == 400
     assert use_case.calls == []
-    # Derived Spring BasicErrorController shape — registered as unverified.
-    assert response.json()["code"] == "0002"
+    assert_spring_error_body(response, 400, "/api/agent/featured-conversations/home")
 
 
 def test_list_default_page_1_size_20() -> None:
@@ -121,6 +142,25 @@ def test_list_unparsable_page_no_is_400() -> None:
 
     assert response.status_code == 400
     assert use_case.calls == []
+    assert_spring_error_body(response, 400, "/api/agent/featured-conversations")
+
+
+def test_method_not_allowed_is_spring_shape_with_allow() -> None:
+    with _client() as (use_case, client):
+        response = client.post("/api/agent/featured-conversations/home")
+
+    assert response.status_code == 405
+    assert use_case.calls == []
+    assert response.headers["allow"] == "GET"
+    assert_spring_error_body(response, 405, "/api/agent/featured-conversations/home")
+
+
+def test_unmapped_path_is_spring_shape() -> None:
+    with _client() as (_use_case, client):
+        response = client.get("/api/agent/featured-conversations/a/b")
+
+    assert response.status_code == 404
+    assert_spring_error_body(response, 404, "/api/agent/featured-conversations/a/b")
 
 
 def test_detail_null_is_emitted_as_json_null() -> None:

@@ -1,0 +1,44 @@
+{
+  "cases": [
+    {
+      "name": "featured-home-bad-limit",
+      "method": "GET",
+      "path": "/api/agent/featured-conversations/home",
+      "query": {
+        "limit": "abc"
+      },
+      "normalization": {
+        "ignored_json_pointers": ["/body/timestamp"]
+      }
+    },
+    {
+      "name": "featured-list-bad-page-no",
+      "method": "GET",
+      "path": "/api/agent/featured-conversations",
+      "query": {
+        "pageNo": "x"
+      },
+      "normalization": {
+        "ignored_json_pointers": ["/body/timestamp"]
+      }
+    },
+    {
+      "name": "featured-home-method-not-allowed",
+      "method": "POST",
+      "path": "/api/agent/featured-conversations/home",
+      "compared_headers": ["allow"],
+      "normalization": {
+        "ignored_json_pointers": ["/body/timestamp"]
+      }
+    },
+    {
+      "name": "featured-list-method-not-allowed",
+      "method": "POST",
+      "path": "/api/agent/featured-conversations",
+      "compared_headers": ["allow"],
+      "normalization": {
+        "ignored_json_pointers": ["/body/timestamp"]
+      }
+    }
+  ]
+}

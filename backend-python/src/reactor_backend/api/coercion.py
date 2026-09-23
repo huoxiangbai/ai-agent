@@ -7,8 +7,8 @@ whitespace-only as the default and raises ``MethodArgumentTypeMismatchException`
 
 FastAPI's ``int`` declaration would answer 422 + ``0002`` instead, so the routes
 declare ``str | None`` and call into here. The 400 body shape is Spring's
-``BasicErrorController`` default (derived, not JVM-probed — registered as
-unverified in ``api-contracts.md``).
+``BasicErrorController`` default — measured 2026-09-23 against a live JVM and
+reproduced by :func:`reactor_backend.api.presenters.spring_error_response`.
 """
 
 from __future__ import annotations

@@ -159,8 +159,14 @@ services:
     restart: unless-stopped
     ports:
       - "${WEB_PORT:-3000}:80"
+    volumes:
+      # Phase 3B cutover switch lives on the host so rollback survives a
+      # container restart. Presence of featured-conversations.conf = Python;
+      # move it aside + `nginx -t && nginx -s reload` = back to Java.
+      - ./docker/nginx-featured-python.d/:/etc/nginx/featured-python.d/:ro
     depends_on:
       - reactor-backend
+      - reactor-backend-python
       - reactor-tool
 
 volumes:

@@ -1,0 +1,71 @@
+{
+  "mode": "java-baseline",
+  "base_url": "http://127.0.0.1:8100",
+  "cases": [
+    {
+      "name": "featured-home-bad-limit",
+      "snapshot": {
+        "status_code": 400,
+        "content_type": "application/json",
+        "headers": {},
+        "cookies": [],
+        "body": {
+          "timestamp": "<contract-ignored>",
+          "status": 400,
+          "error": "Bad Request",
+          "path": "/api/agent/featured-conversations/home"
+        }
+      }
+    },
+    {
+      "name": "featured-list-bad-page-no",
+      "snapshot": {
+        "status_code": 400,
+        "content_type": "application/json",
+        "headers": {},
+        "cookies": [],
+        "body": {
+          "timestamp": "<contract-ignored>",
+          "status": 400,
+          "error": "Bad Request",
+          "path": "/api/agent/featured-conversations"
+        }
+      }
+    },
+    {
+      "name": "featured-home-method-not-allowed",
+      "snapshot": {
+        "status_code": 405,
+        "content_type": "application/json",
+        "headers": {
+          "allow": "GET"
+        },
+        "cookies": [],
+        "body": {
+          "timestamp": "<contract-ignored>",
+          "status": 405,
+          "error": "Method Not Allowed",
+          "path": "/api/agent/featured-conversations/home"
+        }
+      }
+    },
+    {
+      "name": "featured-list-method-not-allowed",
+      "snapshot": {
+        "status_code": 405,
+        "content_type": "application/json",
+        "headers": {
+          "allow": "GET"
+        },
+        "cookies": [],
+        "body": {
+          "timestamp": "<contract-ignored>",
+          "status": 405,
+          "error": "Method Not Allowed",
+          "path": "/api/agent/featured-conversations"
+        }
+      }
+    }
+  ],
+  "skipped": []
+}

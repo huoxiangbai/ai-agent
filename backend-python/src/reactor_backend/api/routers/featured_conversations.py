@@ -12,7 +12,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from reactor_backend.api.coercion import CoercionError, coerce_int
-from reactor_backend.api.presenters import error_response, success_response
+from reactor_backend.api.presenters import spring_error_response, success_response
 from reactor_backend.application.featured_conversation_query import (
     FeaturedConversationQueryUseCase,
 )
@@ -36,7 +36,9 @@ async def home(request: Request, limit: str | None = None) -> JSONResponse:
     try:
         resolved_limit = coerce_int(limit, HOME_DEFAULT_LIMIT)
     except CoercionError:
-        return error_response(400, "Bad Request", "0002")
+        # Spring: MethodArgumentTypeMismatchException -> sendError(400) ->
+        # BasicErrorController. Not a 0002 envelope, not a 422 (measured).
+        return spring_error_response(400, request.url.path)
     cards = await _use_case(request).query_home_cards(resolved_limit)
     return success_response(cards)
 
@@ -51,7 +53,7 @@ async def featured_list(
         resolved_page_no = coerce_int(pageNo, LIST_DEFAULT_PAGE_NO)
         resolved_page_size = coerce_int(pageSize, LIST_DEFAULT_PAGE_SIZE)
     except CoercionError:
-        return error_response(400, "Bad Request", "0002")
+        return spring_error_response(400, request.url.path)
     page = await _use_case(request).query_public_list(resolved_page_no, resolved_page_size)
     return success_response(page)
 

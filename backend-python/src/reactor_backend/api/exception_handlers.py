@@ -4,7 +4,9 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from reactor_backend.api.presenters import error_response, spring_error_response
 from reactor_backend.shared.errors import ApiError
 from reactor_backend.shared.responses import ApiResponse
 
@@ -26,11 +28,34 @@ def install_exception_handlers(app: FastAPI) -> None:
         payload = ApiResponse[object].failure("非法参数", "0002")
         return JSONResponse(status_code=422, content=payload.model_dump())
 
+    @app.exception_handler(StarletteHTTPException)
+    async def handle_http_exception(
+        request: Request, error: StarletteHTTPException
+    ) -> JSONResponse:
+        """Transport-level 4xx must look like Java's, not FastAPI's.
+
+        FastAPI's default is ``{"detail": "Method Not Allowed"}``. Java's
+        ``DefaultHandlerExceptionResolver`` turns the same situation into
+        ``sendError`` + ``BasicErrorController``, i.e. the four-key error body.
+        Measured 2026-09-23: the ``Allow`` header (``GET``) matches on both
+        sides and is carried across unchanged.
+        """
+        response = spring_error_response(error.status_code, request.url.path)
+        for name, value in (error.headers or {}).items():
+            response.headers[name] = value
+        return response
+
     @app.exception_handler(Exception)
-    async def handle_unexpected_error(_request: Request, error: Exception) -> JSONResponse:
+    async def handle_unexpected_error(request: Request, error: Exception) -> JSONResponse:
         structlog.get_logger(__name__).exception(
             "unhandled_request_error",
             error_type=type(error).__name__,
         )
-        payload = ApiResponse[object].failure("未知失败")
-        return JSONResponse(status_code=500, content=payload.model_dump())
+        return spring_error_response(500, request.url.path)
+
+
+# ``error_response`` stays exported for application-level failures that want an
+# explicit status plus the ``{code, info, data}`` envelope rather than Spring's
+# transport-error body. Importing it here keeps the two shapes discoverable
+# together.
+__all__ = ["install_exception_handlers", "error_response"]

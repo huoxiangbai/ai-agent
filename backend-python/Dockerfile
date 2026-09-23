@@ -17,4 +17,7 @@ RUN uv sync --frozen --no-dev
 
 EXPOSE 8200
 
-CMD ["uvicorn", "reactor_backend.main:app", "--host", "0.0.0.0", "--port", "8200"]
+# --no-server-header: Java sends no Server header at all, so `Server: uvicorn`
+# would be a public-HTTP delta the moment these routes cut over. Load-bearing
+# for the 3B header-identity check — do not drop.
+CMD ["uvicorn", "reactor_backend.main:app", "--host", "0.0.0.0", "--port", "8200", "--no-server-header"]
