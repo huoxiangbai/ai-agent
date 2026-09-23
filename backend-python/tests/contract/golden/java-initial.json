@@ -1,0 +1,455 @@
+{
+  "mode": "java-baseline",
+  "base_url": "http://127.0.0.1:8100",
+  "cases": [
+    {
+      "name": "visitor-bootstrap",
+      "snapshot": {
+        "status_code": 200,
+        "content_type": "application/json",
+        "headers": {},
+        "cookies": [
+          {
+            "name": "ai_agent_visitor_token",
+            "value_fingerprint": "<contract-ignored>",
+            "attributes": {
+              "path": "/",
+              "expires": "<contract-ignored>",
+              "max-age": "31536000",
+              "samesite": "Lax",
+              "secure": true,
+              "httponly": true
+            }
+          }
+        ],
+        "body": {
+          "code": "0000",
+          "info": "成功",
+          "data": {
+            "visitorId": "<contract-ignored>",
+            "username": null,
+            "named": false
+          }
+        }
+      }
+    },
+    {
+      "name": "featured-home-default",
+      "snapshot": {
+        "status_code": 200,
+        "content_type": "application/json",
+        "headers": {},
+        "cookies": [],
+        "body": {
+          "code": "0000",
+          "info": "成功",
+          "data": [
+            {
+              "featuredId": "fixture-featured",
+              "sessionId": "fixture-session",
+              "title": "Fixture featured conversation",
+              "summary": "Deterministic contract fixture summary.",
+              "coverUrl": null,
+              "tags": [
+                "fixture",
+                "contract"
+              ],
+              "publishedAt": "2026-01-02T10:00:00",
+              "contentLastActiveAt": "2026-01-03T09:00:00"
+            },
+            {
+              "featuredId": "fixture-featured-2",
+              "sessionId": "fixture-session-2",
+              "title": "Fixture featured conversation two",
+              "summary": "Second deterministic contract fixture summary.",
+              "coverUrl": null,
+              "tags": [
+                "fixture"
+              ],
+              "publishedAt": "2026-01-02T11:00:00",
+              "contentLastActiveAt": "2026-01-03T08:00:00"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "featured-list-first-page",
+      "snapshot": {
+        "status_code": 200,
+        "content_type": "application/json",
+        "headers": {},
+        "cookies": [],
+        "body": {
+          "code": "0000",
+          "info": "成功",
+          "data": {
+            "total": 2,
+            "list": [
+              {
+                "featuredId": "fixture-featured",
+                "sessionId": "fixture-session",
+                "title": "Fixture featured conversation",
+                "summary": "Deterministic contract fixture summary.",
+                "coverUrl": null,
+                "tags": [
+                  "fixture",
+                  "contract"
+                ],
+                "publishedAt": "2026-01-02T10:00:00",
+                "contentLastActiveAt": "2026-01-03T09:00:00"
+              },
+              {
+                "featuredId": "fixture-featured-2",
+                "sessionId": "fixture-session-2",
+                "title": "Fixture featured conversation two",
+                "summary": "Second deterministic contract fixture summary.",
+                "coverUrl": null,
+                "tags": [
+                  "fixture"
+                ],
+                "publishedAt": "2026-01-02T11:00:00",
+                "contentLastActiveAt": "2026-01-03T08:00:00"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "featured-detail-fixture",
+      "snapshot": {
+        "status_code": 200,
+        "content_type": "application/json",
+        "headers": {},
+        "cookies": [],
+        "body": {
+          "code": "0000",
+          "info": "成功",
+          "data": {
+            "featuredId": "fixture-featured",
+            "sessionId": "fixture-session",
+            "title": "Fixture featured conversation",
+            "summary": "Deterministic contract fixture summary.",
+            "coverUrl": null,
+            "tags": [
+              "fixture",
+              "contract"
+            ],
+            "status": "ONLINE",
+            "publishedAt": "2026-01-02T10:00:00",
+            "contentLastActiveAt": "2026-01-03T09:00:00",
+            "contentAvailable": true,
+            "contentUnavailableReason": null,
+            "historyDetail": {
+              "sessionId": "fixture-session",
+              "title": "Fixture session one",
+              "status": "SUCCESS",
+              "deepThink": false,
+              "runCount": 1,
+              "finishedRunCount": 1,
+              "failedRunCount": 0,
+              "startedAt": "2026-01-01T09:00:00",
+              "lastActiveAt": "2026-01-03T09:00:00",
+              "runs": [
+                {
+                  "requestId": "fixture-run-0001",
+                  "status": "SUCCESS",
+                  "queryText": "fixture query text",
+                  "finalSummaryText": "fixture summary text",
+                  "startedAt": "2026-01-01T09:00:00",
+                  "finishedAt": "2026-01-01T09:00:05",
+                  "contextUsage": {
+                    "sys": 0,
+                    "tools": 0,
+                    "history": 0,
+                    "files": 0,
+                    "max": 100000,
+                    "used": 100,
+                    "estimatedTotal": 0,
+                    "promptTokens": 100,
+                    "completionTokens": 50,
+                    "source": "measured"
+                  },
+                  "replayFrames": [
+                    {
+                      "status": "success",
+                      "response": null,
+                      "responseAll": null,
+                      "finished": true,
+                      "useTimes": 0,
+                      "useTokens": 0,
+                      "resultMap": {
+                        "agentType": "history",
+                        "multiAgent": {},
+                        "eventData": {
+                          "taskId": "<contract-ignored>",
+                          "taskOrder": 1,
+                          "messageType": "task",
+                          "messageOrder": 1,
+                          "messageId": "react:1",
+                          "resultMap": {
+                            "requestId": "fixture-run-0001",
+                            "messageId": "react:1",
+                            "messageType": "tool_thought",
+                            "messageTime": "1767229202000",
+                            "isFinal": true,
+                            "finish": false,
+                            "toolThought": "fixture response text"
+                          }
+                        }
+                      },
+                      "responseType": null,
+                      "traceId": null,
+                      "reqId": "fixture-run-0001",
+                      "encrypted": false,
+                      "query": null,
+                      "messages": null,
+                      "packageType": null,
+                      "errorMsg": null,
+                      "eventSeq": 0,
+                      "retryMs": null
+                    },
+                    {
+                      "status": "success",
+                      "response": null,
+                      "responseAll": null,
+                      "finished": true,
+                      "useTimes": 0,
+                      "useTokens": 0,
+                      "resultMap": {
+                        "agentType": "history",
+                        "multiAgent": {},
+                        "eventData": {
+                          "taskId": "<contract-ignored>",
+                          "taskOrder": 2,
+                          "messageType": "task",
+                          "messageOrder": 1,
+                          "messageId": "fixture-run-0001:summary",
+                          "resultMap": {
+                            "requestId": "fixture-run-0001",
+                            "messageId": "fixture-run-0001:summary",
+                            "messageTime": "1767229205000",
+                            "messageType": "result",
+                            "isFinal": true,
+                            "finish": true,
+                            "result": "fixture summary text",
+                            "taskSummary": "fixture summary text"
+                          }
+                        }
+                      },
+                      "responseType": null,
+                      "traceId": null,
+                      "reqId": "fixture-run-0001",
+                      "encrypted": false,
+                      "query": null,
+                      "messages": null,
+                      "packageType": null,
+                      "errorMsg": null,
+                      "eventSeq": 0,
+                      "retryMs": null
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "conversation-session-list",
+      "snapshot": {
+        "status_code": 200,
+        "content_type": "application/json",
+        "headers": {},
+        "cookies": [],
+        "body": {
+          "code": "0000",
+          "info": "成功",
+          "data": [
+            {
+              "sessionId": "fixture-session",
+              "title": "Fixture session one",
+              "status": "SUCCESS",
+              "latestQueryText": "fixture query text",
+              "runCount": 1,
+              "finishedRunCount": 1,
+              "failedRunCount": 0,
+              "startedAt": "2026-01-01T09:00:00",
+              "lastActiveAt": "2026-01-03T09:00:00"
+            },
+            {
+              "sessionId": "fixture-session-2",
+              "title": "Fixture session two",
+              "status": "SUCCESS",
+              "latestQueryText": "second fixture query text",
+              "runCount": 0,
+              "finishedRunCount": 0,
+              "failedRunCount": 0,
+              "startedAt": "2026-01-01T08:00:00",
+              "lastActiveAt": "2026-01-03T08:00:00"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "conversation-session-detail",
+      "snapshot": {
+        "status_code": 200,
+        "content_type": "application/json",
+        "headers": {},
+        "cookies": [],
+        "body": {
+          "code": "0000",
+          "info": "成功",
+          "data": {
+            "sessionId": "fixture-session",
+            "title": "Fixture session one",
+            "status": "SUCCESS",
+            "deepThink": false,
+            "runCount": 1,
+            "finishedRunCount": 1,
+            "failedRunCount": 0,
+            "startedAt": "2026-01-01T09:00:00",
+            "lastActiveAt": "2026-01-03T09:00:00",
+            "runs": [
+              {
+                "requestId": "fixture-run-0001",
+                "status": "SUCCESS",
+                "queryText": "fixture query text",
+                "finalSummaryText": "fixture summary text",
+                "startedAt": "2026-01-01T09:00:00",
+                "finishedAt": "2026-01-01T09:00:05",
+                "contextUsage": {
+                  "sys": 0,
+                  "tools": 0,
+                  "history": 0,
+                  "files": 0,
+                  "max": 100000,
+                  "used": 100,
+                  "estimatedTotal": 0,
+                  "promptTokens": 100,
+                  "completionTokens": 50,
+                  "source": "measured"
+                },
+                "replayFrames": [
+                  {
+                    "status": "success",
+                    "response": null,
+                    "responseAll": null,
+                    "finished": true,
+                    "useTimes": 0,
+                    "useTokens": 0,
+                    "resultMap": {
+                      "agentType": "history",
+                      "multiAgent": {},
+                      "eventData": {
+                        "taskId": "<contract-ignored>",
+                        "taskOrder": 1,
+                        "messageType": "task",
+                        "messageOrder": 1,
+                        "messageId": "react:1",
+                        "resultMap": {
+                          "requestId": "fixture-run-0001",
+                          "messageId": "react:1",
+                          "messageType": "tool_thought",
+                          "messageTime": "1767229202000",
+                          "isFinal": true,
+                          "finish": false,
+                          "toolThought": "fixture response text"
+                        }
+                      }
+                    },
+                    "responseType": null,
+                    "traceId": null,
+                    "reqId": "fixture-run-0001",
+                    "encrypted": false,
+                    "query": null,
+                    "messages": null,
+                    "packageType": null,
+                    "errorMsg": null,
+                    "eventSeq": 0,
+                    "retryMs": null
+                  },
+                  {
+                    "status": "success",
+                    "response": null,
+                    "responseAll": null,
+                    "finished": true,
+                    "useTimes": 0,
+                    "useTokens": 0,
+                    "resultMap": {
+                      "agentType": "history",
+                      "multiAgent": {},
+                      "eventData": {
+                        "taskId": "<contract-ignored>",
+                        "taskOrder": 2,
+                        "messageType": "task",
+                        "messageOrder": 1,
+                        "messageId": "fixture-run-0001:summary",
+                        "resultMap": {
+                          "requestId": "fixture-run-0001",
+                          "messageId": "fixture-run-0001:summary",
+                          "messageTime": "1767229205000",
+                          "messageType": "result",
+                          "isFinal": true,
+                          "finish": true,
+                          "result": "fixture summary text",
+                          "taskSummary": "fixture summary text"
+                        }
+                      }
+                    },
+                    "responseType": null,
+                    "traceId": null,
+                    "reqId": "fixture-run-0001",
+                    "encrypted": false,
+                    "query": null,
+                    "messages": null,
+                    "packageType": null,
+                    "errorMsg": null,
+                    "eventSeq": 0,
+                    "retryMs": null
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "session-capabilities",
+      "snapshot": {
+        "status_code": 200,
+        "content_type": "application/json",
+        "headers": {},
+        "cookies": [],
+        "body": {
+          "code": "0000",
+          "info": "成功",
+          "data": {
+            "locked": false,
+            "skills": [
+              {
+                "name": "contract-fixture-alpha",
+                "refId": "contract-fixture-alpha",
+                "source": "system",
+                "enabled": true
+              },
+              {
+                "name": "contract-fixture-beta",
+                "refId": "contract-fixture-beta",
+                "source": "system",
+                "enabled": true
+              }
+            ],
+            "mcpServers": []
+          }
+        }
+      }
+    }
+  ],
+  "skipped": []
+}

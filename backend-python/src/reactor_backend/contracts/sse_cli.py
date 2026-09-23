@@ -18,8 +18,19 @@ async def _run(arguments: argparse.Namespace, body: JsonValue) -> tuple[dict[str
     java_url = os.environ.get("JAVA_BASE_URL", "http://127.0.0.1:8100")
     python_url = os.environ.get("PYTHON_BASE_URL", "http://127.0.0.1:8200")
     async with (
-        httpx.AsyncClient(base_url=java_url, timeout=timeout, headers=headers) as java,
-        httpx.AsyncClient(base_url=python_url, timeout=timeout, headers=headers) as python,
+        httpx.AsyncClient(
+            base_url=java_url,
+            timeout=timeout,
+            headers=headers,
+            # Local servers only; a system-level proxy would hijack 127.0.0.1.
+            trust_env=False,
+        ) as java,
+        httpx.AsyncClient(
+            base_url=python_url,
+            timeout=timeout,
+            headers=headers,
+            trust_env=False,
+        ) as python,
     ):
         java_capture, python_capture = await asyncio.gather(
             capture_sse(

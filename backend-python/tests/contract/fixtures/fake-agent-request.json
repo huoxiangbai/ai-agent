@@ -1,0 +1,14 @@
+{
+  "query": "contract-fixture-query",
+  "sessionId": "fixture-session",
+  "requestId": "fixture-request-0001",
+  "deepThink": 0,
+  "outputStyle": null,
+  "traceId": "fixture-trace-0001",
+  "user": "fixture-visitor-0001",
+  "model": null,
+  "thinking": false,
+  "thinkingEffort": null,
+  "sessionFiles": [],
+  "forcePlanMode": false
+}

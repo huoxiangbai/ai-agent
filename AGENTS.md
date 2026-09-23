@@ -98,7 +98,7 @@ uv run reactor-contract tests/contract/cases/initial.json \
   --output build/contract-report.json
 ```
 
-SSE 使用 `uv run reactor-sse-contract ...` 单独比较，并使用已检入的本地 fake 请求。记录 Java golden 时使用 `--record-java`；不得把原始 Cookie、密钥、完整用户提示或付费提供商响应写入仓库。
+SSE 使用 `uv run reactor-sse-contract ...` 单独比较，并使用已检入的本地 fake 请求。记录 Java golden 时使用 `--record-java`（记录 Python 响应用对称的 `--record-python`）；`--golden <file> --response <file>` 是**完全离线**的比较路径，不需要任何服务。非确定字段仍只能按单个 case 的 JSON Pointer 放行（指针根是采集文档，故 body 字段为 `/body/data/...`、cookie 属性为 `/cookies/*/attributes/...`）；不得把原始 Cookie、密钥、完整用户提示或付费提供商响应写入仓库。
 
 涉及 Java 参考实现时，至少运行稳定基线：
 

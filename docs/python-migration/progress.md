@@ -98,7 +98,106 @@ Scope: documentation and test-governance reconciliation only. No business routes
 - [x] Nondeterministic fields are endpoint-local allowlists.
 - [x] Local unit tests do not invoke paid LLMs or external providers.
 - [x] Every route is covered or explicitly deferred (`api-contracts.md` deferred registry, added 2026-09-22).
-- [ ] Record initial goldens from a running Java service using deterministic database fixtures.
-- [ ] Compare a Python response against a stored Java golden offline (phase 2 scope; does not require phase 3 routes).
-- [ ] Add the missing `tests/contract/fixtures/fake-agent-request.json` and `tests/contract/golden/`.
-- [ ] Execute initial Java/Python comparisons after the corresponding phase 3 routes are implemented.
+- [x] Record initial goldens from a running Java service using deterministic database fixtures. *(done 2026-09-23 — `tests/contract/golden/java-initial.json`, 7/7 cases, `skipped: []`. See the Phase 2 verification log below.)*
+- [x] Compare a Python response against a stored Java golden offline (phase 2 scope; does not require phase 3 routes). *(done 2026-09-23 — `--golden` + `--response` runs with no server contacted at all. The Python side is a recorded capture document; see the self-verification note below.)*
+- [x] Add the missing `tests/contract/fixtures/fake-agent-request.json` and `tests/contract/golden/`. *(done 2026-09-23 — plus `fixtures/contract-seed.sql` and a pinned `fixtures/skills/` tree.)*
+- [ ] Execute initial Java/Python comparisons after the corresponding phase 3 routes are implemented. *(unchanged — **gated on phase 3**. Python has no business routes yet, so there is nothing honest to compare end to end.)*
+
+### Phase 2 verification log (2026-09-23)
+
+Real commands, real results. Nothing below is inferred.
+
+**Recording — one command once Java and the throwaway MySQL are up:**
+
+```bash
+cd backend-python
+JAVA_BASE_URL=http://127.0.0.1:8100 \
+CONTRACT_VISITOR_TOKEN=fixture-raw-token \
+CONTRACT_SESSION_ID=fixture-session \
+CONTRACT_FEATURED_ID=fixture-featured \
+uv run reactor-contract tests/contract/cases/initial.json \
+  --record-java --output tests/contract/golden/java-initial.json
+```
+
+Result: 7/7 cases captured, `skipped: []`, 15613 bytes. Secret scan over the golden
+reported **0 hits** for raw cookies, API keys, full user prompts and provider
+responses; 7 leaves carry the `"<contract-ignored>"` sentinel.
+
+Recording runtime: a throwaway `mysqld` on port 3307 with its own datadir under
+`build/contract-recording/` (`--no-defaults` plus an explicit `--datadir` on every
+invocation, because the Homebrew `my.cnf` and the compiled-in default both point
+at `/usr/local/var/mysql`, which this slice must not touch), seeded from
+`tests/contract/fixtures/contract-seed.sql`; Java started with
+`--spring.profiles.active=prod` and test-only `spring.datasource.mysql.*`
+overrides. Full command sequence is in
+`docs/python-migration/execplans/contract-lab.md` and
+`backend-python/tests/contract/README.md`.
+
+**Repeatability self-check:** re-seeding the fixture and re-recording produced a
+**byte-identical** golden (`cmp` clean).
+
+**Offline comparison — no server contacted:**
+
+```bash
+uv run reactor-contract tests/contract/cases/initial.json \
+  --golden tests/contract/golden/java-initial.json \
+  --response /tmp/golden-repeat.json \
+  --output /tmp/contract-self-check.json
+```
+
+Result: 7/7 `matched: true`, 0 differences, exit 0. Report shape is
+`{"mode":"comparison","cases":[{"name","matched","java","python","differences"}],"skipped":[]}`.
+
+> **This is comparator self-verification, not Python parity.** Both sides of that
+> comparison are Java recordings. It proves the offline path round-trips a golden
+> and reports differences at the right paths — it does **not** prove Python
+> behaves like Java, because Python has no business routes yet. The real
+> Java/Python comparison is the checklist item above, gated on phase 3. Saying
+> otherwise would be faking coverage.
+
+**Adversarial self-check (six mutations of a golden copy):**
+
+```
+mutations: value, type, removal, additive, cookie-attr, allowlisted-sentinel
+exit=1  (expect 1)
+  DIFF  visitor-bootstrap            /cookies/0/attributes/httponly      value mismatch
+  DIFF  featured-home-default        /body/data/0/title                  value mismatch
+  DIFF  featured-list-first-page     /body/data/total                    type mismatch
+  DIFF  featured-detail-fixture      /body/data/<keys>                   field mismatch
+  DIFF  conversation-session-list    /body/data/0/<keys>                 field mismatch
+  PASS  conversation-session-detail
+  PASS  session-capabilities
+```
+
+Five mutation classes land on exactly the expected `(path, reason)`. The sixth —
+a sentinel rewritten on a path the case's allowlist declares — correctly passes,
+which is what proves the allowlist is per-case rather than a global suppressor.
+
+**Gates:**
+
+```
+uv run ruff check .                    → All checks passed!
+uv run mypy src                        → Success: no issues found in 29 source files
+uv run pytest -m "not integration"     → 44 passed, 1 deselected, 2 warnings
+```
+
+Test count went from `15 passed, 1 deselected` to `44 passed, 1 deselected`.
+The nine required dimensions each have a named test: status, type, null,
+ordering, Cookie, UTF-8, EOF, timeout, error — plus additive policy, golden
+round-trip, offline CLI and pointer hardening.
+
+**Remaining blockers and open items:**
+
+- The checklist item above (real Java/Python comparison) is blocked on phase 3
+  routes. Not a defect of this slice.
+- This slice's diff is not committed yet.
+- The comparator cannot yet measure multipart bodies, binary exports (checksum /
+  `Content-Disposition`), streaming-ZIP Zip Slip containment, the full SSE
+  corpus, or cross-block `last-event-ID`. All five are registered in the
+  *comparator capability deferred registry* in `api-contracts.md`. Uncovered is
+  not reported as covered.
+- Two facts the plan got wrong and measurement corrected: the nondeterministic
+  field on cases 4/6 is `resultMap/eventData/taskId` (a replay-time UUID), **not**
+  `useTimes`; and the visitor cookie **does** carry `Secure` under the `prod`
+  profile, contrary to the `application.yml` default. Both are recorded in
+  `risk-register.md` and the ExecPlan.

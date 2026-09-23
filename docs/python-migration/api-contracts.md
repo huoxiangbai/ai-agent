@@ -82,7 +82,8 @@ Each replay frame: `reqId`, `status`, `finished`, `resultMap.agentType`, optiona
   - `resultMap: object` with optional nested `messageType`
 - Ordering keys and identifiers are stable merge keys. Python must not regenerate them while replaying or following a run.
 - Important message families include reasoning, plan, task, tool-call deltas/final calls, tool results, files/artifacts, UI tree/patch, deep-search stages, context usage, LLM retry, sub-agent progress, `ask_user_question` and `plan_approval`.
-- Unknown fields must be preserved. Compatibility tests compare required structure and known values while allowing additive fields.
+- **Consumer tolerance (unchanged):** unknown fields must be preserved. A frontend or downstream consumer must not reject a frame or payload because it carries a field it does not know.
+- **Migration-comparator policy (added 2026-09-23, deliberately stricter):** an extra field that appears only on the candidate (Python) side is a `field mismatch` difference unless that exact JSON Pointer is declared in the case's allowlist. Declaring it drops the candidate-only leaf and the case passes. A field present in the golden but missing from the candidate is **always** a difference — removal is breaking and no allowlist suppresses it. There is no global ignore list. The two bullets above address different audiences and both hold: consumers stay permissive, the migration comparator stays strict.
 - Terminal behavior distinguishes completed, stopped, failed and waiting-for-input states. A socket close by itself is not a successful terminal event.
 
 ## Data Agent SSE contract
@@ -95,7 +96,7 @@ Each replay frame: `reqId`, `status`, `finished`, `resultMap.agentType`, optiona
 - `READY`: optional `data`
 - `DEBUG`: debug information
 
-The producer also accepts free-form event-type strings (`ChatDataMessage.ofStatus`), so a consumer must tolerate unknown `eventType` values instead of rejecting the frame. Comparators must treat unknown event types as additive fields unless a case pins them.
+The producer also accepts free-form event-type strings (`ChatDataMessage.ofStatus`), so a consumer must tolerate unknown `eventType` values instead of rejecting the frame. The migration comparator follows the strict policy above: an `eventType` value that the case does not pin is a difference. A case that intentionally tolerates free-form event types must declare the corresponding JSON Pointer in its allowlist — that is a per-case decision, never the default.
 
 ## Contract-test design
 
@@ -104,6 +105,8 @@ The producer also accepts free-form event-type strings (`ChatDataMessage.ofStatu
 - HTTP comparison covers status, content type, selected headers, cookie attributes, complete JSON shape, value types, nulls and ordering where meaningful.
 - SSE comparison parses `id`, `event`, `retry` and multi-line `data`, then compares ordered normalized frames and terminal outcome.
 - Non-deterministic values may only be removed by JSON path named in that case (for example generated IDs or timestamps). Unknown extra/missing fields remain diffs.
+- **Pointer root.** For HTTP the root of an `ignored_json_pointers` entry is the capture document (`HttpSnapshot.as_dict()`), so a body field is `/body/data/visitorId` and a cookie attribute is `/cookies/*/attributes/expires` — one namespace. For SSE the root is the event's `data` value (for example `/requestId`). The `*` token fans out over every key of an object or every element of a list. List length is contract data: elements are never deleted by an allowlist.
+- **One pointer list, two semantics.** At capture time `normalize_json` replaces allowlisted leaves with the sentinel `"<contract-ignored>"` (value tolerance). At compare time `drop_additive` deletes candidate-only leaves named by the same list (additive tolerance). A pointer whose final object key is absent is a no-op so one list can serve both; a missing *intermediate* key, a non-integer or out-of-range list index, and descending into a scalar all raise `ValueError` so a mistyped allowlist cannot pass silently.
 - Golden fixtures never contain secrets, raw visitor cookies, full user prompts or paid-provider responses.
 - Initial cases cover visitor bootstrap, conversation list/detail, featured home/list/detail and capability GET. Python placeholders may return explicit `501` but may not fake successful business data.
 - Every route must be either **covered** by a case or listed in the deferred registry below. Silence is not coverage.
@@ -135,4 +138,30 @@ Phase-2 exit requires "every route covered or explicitly deferred". Today 7 of 1
 | Health probe | `ANY /web/health` | plain body; covered by live/ready probe tests rather than HTTP contract | 0/1 |
 | Frontend-only phantom | `/web/api/login`, `/web/api/getWhiteList`, `/web/api/reactor/apply` | **no Java implementation exists**; pending determination | open |
 
-Multipart, binary export and the SSE corpus have no comparison capability yet. They are deferred rather than reported as covered.
+Multipart, binary export and the SSE corpus have no comparison capability yet. They are deferred rather than reported as covered. See the comparator capability deferred registry below — that table lists what the *comparator* cannot yet measure, which is a different question from what the *route* registry above defers.
+
+## SSE recorder/compare scope
+
+What the SSE path measures today versus what it does not. Nothing in the deferred column may be reported as covered.
+
+| Covered | Capability |
+|---|---|
+| yes | ordered events, `id` / `event` / `retry` / multi-line `data`, comment heartbeats, UTF-8 |
+| yes | termination modes `eof` / `http-error` (status >= 400) / `timeout` / `transport-error` / `size-limit`, plus `status_code` / `content_type` / `error_type` |
+| yes | per-event allowlist pointers rooted at the event `data` value; additive-field policy matching the HTTP comparator |
+| **deferred** | cross-block last-event-ID persistence — `event_id` is currently scoped to a single block |
+| **deferred** | unparseable `retry` silently becomes `null` rather than raising |
+| **deferred** | full SSE corpus: reconnect / follow / stop / inject / resume, and terminal-state differences (completed / stopped / failed / waiting-for-input) |
+| **deferred** | streaming-ZIP Zip Slip / symlink containment checks |
+
+## Comparator capability deferred registry
+
+Distinct from the route-level registry above: this is what the comparison tooling itself cannot yet measure, regardless of which route is being compared. Owner phase is when the missing capability becomes blocking.
+
+| Capability | Why the comparator cannot measure it | Routes affected | Owner phase |
+|---|---|---|---|
+| Multipart request/response (boundary, part headers, filename) | no multipart parser or comparer | `POST /api/agent/file/upload`, `/api/v1/admin/skills` | 6 |
+| Binary export (checksum, `Content-Disposition`, media type) | body is captured as text or raw JSON only | `GET /api/agent/workspace/{sessionId}/archive`, `POST /api/agent/genui/export/*` | 6 |
+| Streaming ZIP Zip Slip / symlink containment | no archive entry validation at all | same as above | 6 |
+| SSE corpus comparison (reconnect/follow/stop/inject/resume, terminal states) | only ordered frame-level comparison exists | `queryAgentStreamIncr`, `/api/agent/run/*`, `/api/agent/ask-user/*`, `/api/agent/plan-approval/*`, `/data/chatQuery` | 5/7 |
+| SSE cross-block last-event-ID | `event_id` is block-local; changing it is an SSE semantics change needing separate approval | same as above | 5 |

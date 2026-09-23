@@ -7,7 +7,7 @@ import httpx
 
 from reactor_backend.contracts.http import _compare
 from reactor_backend.contracts.models import Difference, JsonValue, SseCapture, SseEvent
-from reactor_backend.contracts.normalize import normalize_json
+from reactor_backend.contracts.normalize import drop_additive, normalize_json
 
 
 def parse_sse_text(payload: str) -> list[SseEvent]:
@@ -128,8 +128,22 @@ def compare_sse(
     *,
     ignored_json_pointers: tuple[str, ...] = (),
 ) -> list[Difference]:
+    """Compare ordered SSE events reference-first (``java``) vs candidate.
+
+    Additive fields inside a matching ``data`` payload follow the same policy as
+    HTTP bodies: candidate-only leaves pass when the case allowlist names them,
+    removals never do.
+    """
+
     java_values = [_normalized_event(event, ignored_json_pointers) for event in java]
-    python_values = [_normalized_event(event, ignored_json_pointers) for event in python]
+    python_values = [
+        _normalized_event(
+            event,
+            ignored_json_pointers,
+            golden_data=java[index].data if index < len(java) else None,
+        )
+        for index, event in enumerate(python)
+    ]
     differences: list[Difference] = []
     _compare("/events", java_values, python_values, differences)
     return differences
@@ -156,8 +170,16 @@ def compare_sse_capture(
     return differences
 
 
-def _normalized_event(event: SseEvent, pointers: tuple[str, ...]) -> dict[str, object]:
+def _normalized_event(
+    event: SseEvent,
+    pointers: tuple[str, ...],
+    *,
+    golden_data: JsonValue = None,
+) -> dict[str, object]:
     value = event.as_dict()
-    if isinstance(event.data, (dict, list)):
-        value["data"] = normalize_json(event.data, pointers)
+    data = event.data
+    if isinstance(data, (dict, list)):
+        if pointers and isinstance(golden_data, (dict, list)):
+            data = drop_additive(golden_data, data, pointers)
+        value["data"] = normalize_json(data, pointers)
     return value

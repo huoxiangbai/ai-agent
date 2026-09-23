@@ -5,7 +5,10 @@
       "method": "GET",
       "path": "/api/agent/visitor/bootstrap",
       "normalization": {
-        "ignored_json_pointers": ["/data/visitorId"],
+        "ignored_json_pointers": [
+          "/body/data/visitorId",
+          "/cookies/*/attributes/expires"
+        ],
         "ignored_cookie_values": ["ai_agent_visitor_token"]
       }
     },
@@ -23,7 +26,12 @@
     {
       "name": "featured-detail-fixture",
       "method": "GET",
-      "path": "/api/agent/featured-conversations/${CONTRACT_FEATURED_ID}"
+      "path": "/api/agent/featured-conversations/${CONTRACT_FEATURED_ID}",
+      "normalization": {
+        "ignored_json_pointers": [
+          "/body/data/historyDetail/runs/*/replayFrames/*/resultMap/eventData/taskId"
+        ]
+      }
     },
     {
       "name": "conversation-session-list",
@@ -36,7 +44,12 @@
       "name": "conversation-session-detail",
       "method": "GET",
       "path": "/api/agent/conversation/sessions/${CONTRACT_SESSION_ID}",
-      "headers": {"Cookie": "ai_agent_visitor_token=${CONTRACT_VISITOR_TOKEN}"}
+      "headers": {"Cookie": "ai_agent_visitor_token=${CONTRACT_VISITOR_TOKEN}"},
+      "normalization": {
+        "ignored_json_pointers": [
+          "/body/data/runs/*/replayFrames/*/resultMap/eventData/taskId"
+        ]
+      }
     },
     {
       "name": "session-capabilities",
