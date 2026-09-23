@@ -1,6 +1,6 @@
 # Public API and SSE compatibility contract
 
-Last updated: 2026-09-22
+Last updated: 2026-09-23
 
 ## Global HTTP contract
 
@@ -19,6 +19,43 @@ Last updated: 2026-09-22
 ### Python-side envelope mapping (coexistence backend)
 
 The Python exception handlers currently map: `ApiError` → HTTP 200 + code `0001`; request validation → HTTP 422 + code `0002`; unhandled exception → HTTP 500 + code `0001` and message `未知失败`. Per-endpoint goldens take precedence over this default.
+
+**The three featured GETs deliberately bypass that default.** Java has no `@ControllerAdvice`, so a query parameter that fails Spring's `StringToNumberConverter` produces **HTTP 400** shaped by Spring Boot's auto-configured `BasicErrorController` — *not* a `0002` envelope, and *not* 422. `api/coercion.py` therefore re-implements the converter semantics (missing / empty / whitespace-only → the Java default; trim-then-parse → int; unparsable → 400) and the routes declare `str | None` so FastAPI never 422s first.
+
+## Derived values that were never probed (2026-09-23)
+
+These are **inferred from source**, not measured against a running Java. The 2026-09-23 evidence decision (Python unit + repository integration + Java stub characterization; no Java service boot, no golden re-record) makes that unavoidable. Uncovered is not reported as covered.
+
+| Value | Why it is derived | How to close it | Owner phase |
+|---|---|---|---|
+| Spring `BasicErrorController` 400 body for an unparsable query parameter (e.g. `GET /api/agent/featured-conversations/home?limit=abc`) | shape comes from Spring Boot's error attributes (`timestamp`, `status`, `error`, `path`, plus whatever the `server.error.*` config adds). Not in any golden — the 3 featured cases never send a bad parameter. | start Java once and curl the bad parameter, then record it as a 4th case | 3B |
+| Same for the auto-configured 404 body (trailing slash / multi-segment `{featuredId}` falls through to Java and 404s) | same reason | same | 3B |
+| Non-`ONLINE` collation behaviour of `status='ONLINE'` under `utf8mb4_unicode_ci` | the SQL keeps the literal and relies on case-insensitive collation; detail-side Python does an explicit `equalsIgnoreCase(trim())`. SQL-level case folding was inferred from the collation name, not probed. | a case with a lower-case `status` row on the same collation | 3B |
+
+## Tool-frame resultMap shapes — verification status (2026-09-23)
+
+The `historyDetail` replay can emit tool frames. All **10** projector families are ported from Java source and pinned by 50 key-order unit tests (`backend-python/tests/unit/test_tool_projectors.py`), but **none of them are covered by the 3 featured goldens** — `tests/contract/fixtures/contract-seed.sql` inserts no `ai_agent_tool_*` rows, so those cases only exercise the LLM-only + summary-fallback paths.
+
+| Family | Logical `messageType` | Shape source | Golden-covered | Unit-pinned |
+|---|---|---|---|---|
+| default / `tool_result` | `tool_result` | `DefaultToolInvocationProjector` | no | yes |
+| `code_interpreter` | `code` | `CodeInterpreterToolInvocationProjector` | no | yes |
+| `canvas_publish` | `html` | `CanvasPublishToolInvocationProjector` | no | yes |
+| `data_analysis` | *(tool name)* | `DataAnalysisToolInvocationProjector` | no | yes |
+| `multimodalagent_tool` | `markdown` | `MultiModalToolInvocationProjector` | no | yes |
+| `image_generation_tool` | `file` + `tool_result` (two frames) | `ImageGenerationToolInvocationProjector` | no | yes |
+| `askuserquestion` | `ask_user_question` | `AskUserQuestionToolInvocationProjector` | no | yes |
+| `deep_search` | `extend` / `search` / `chapter_summary` / `report` | `DeepSearchToolInvocationProjector` | no | yes |
+| `emit_ui_tree` | `ui_tree` | `GenUiTreeToolInvocationProjector` | no | yes |
+| `emit_ui_patch` | `ui_patch` | `GenUiPatchToolInvocationProjector` | no | yes |
+
+Residual gaps in this area:
+
+- `UserQuestionReader` is ported as a `Protocol` defaulting to `None`, matching Java's null-repository constructor path. A persisted-question `ask_user_question` frame has no DB adapter and is only reachable from a fake.
+- `_rebuild_chapters` (deep_search chapters rebuilt from `chapter_summary` stages) has **no fixture coverage** — neither `contract-seed.sql` nor `featured_read_edge_seed.sql` inserts `ai_agent_tool_output_deep_search`.
+- Shared helpers are unit-pinned but not golden-pinned: `mergeFileRefs`' three branches, `markMissingLinks`' `String.valueOf(null) == "null"` quirk (a JSON-null URL counts as *present*), `ArtifactRelativePath`'s raw `originFileName` vs `workspace:`-stripped `description`, and `normalizeWorkspacePath`'s refusal to collapse interior duplicate slashes.
+
+Treat a tool frame produced before these are golden-verified as **source-faithful, not contract-proven**.
 
 ## Visitor identity contract
 

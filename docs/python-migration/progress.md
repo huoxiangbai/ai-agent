@@ -1,13 +1,13 @@
 # Java → Python migration progress
 
-Last updated: 2026-09-22
+Last updated: 2026-09-23
 
 | Phase | Status | Evidence | Exit gate |
 |---|---|---|---|
 | 0. Audit and baseline | Complete (re-verified 2026-09-22) | inventory, API contract, ownership matrix, risk register, real Java test results, and the governance matrix with stage/verification/rollback owner per capability | passed: all discovered surfaces assigned (108 routes, 33 tables, 10 runtime capabilities, 9 external systems); unknowns are risks |
 | 1. Python skeleton | Complete (re-verified 2026-09-22) | image built; MySQL 8.4 initialized 33 tables; live/ready 200; **15 unit tests**, Ruff and mypy pass | passed: Python service and database are healthy; full-stack build is a repeatable coexistence check |
 | 2. Contract harness | In progress | reusable HTTP/SSE capture, endpoint allowlists, sanitized Java recording, diff CLI and initial manifest; deferred registry now explicit | one documented command records the first sanitized goldens, and the runner can compare a Python response against a stored Java golden offline. **This is phase-2 scope and does not wait for phase 3 routes** (aligned with `staged-prompts.md` phase 2 Done when). The first live dual comparison follows once phase 3 routes exist |
-| 3. Read-only APIs | Not started | — | unit/integration/contract parity and exact-path rollback. **Scope is the three public featured GETs only** (see the 2026-09-22 decision below) |
+| 3. Read-only APIs | **3A implemented (2026-09-23); 3B pending** | 3 public featured GETs in `backend-python/`; 183 unit tests; 50 tool-projector key-order tests; Java characterization 13/13; offline contract 3/3 zero diffs; `reactor_py_ro` wired into compose. Two gates blocked on the `reactor_py_ro` secret — see the 3A log | 3A done when: unit/integration/contract parity + the three routes serve under a read-only MySQL account + ExecPlan holds cutover/rollback. **Integration re-run and contract re-record are blocked** (R-34). 3B (Nginx cutover + rollback drill) not started. Scope remains the three public featured GETs only |
 | 4. CRUD/auth | Not started | — | exclusive write ownership and concurrency/rollback tests. Also owns visitor identity writes and the other filter-protected GETs |
 | 5. SSE/run control | Not started | — | lifecycle/cancellation parity with no leaked tasks |
 | 6. Tool/Skill/MCP | Not started | — | fake-backed compatibility and workspace security tests |
@@ -101,7 +101,7 @@ Scope: documentation and test-governance reconciliation only. No business routes
 - [x] Record initial goldens from a running Java service using deterministic database fixtures. *(done 2026-09-23 — `tests/contract/golden/java-initial.json`, 7/7 cases, `skipped: []`. See the Phase 2 verification log below.)*
 - [x] Compare a Python response against a stored Java golden offline (phase 2 scope; does not require phase 3 routes). *(done 2026-09-23 — `--golden` + `--response` runs with no server contacted at all. The Python side is a recorded capture document; see the self-verification note below.)*
 - [x] Add the missing `tests/contract/fixtures/fake-agent-request.json` and `tests/contract/golden/`. *(done 2026-09-23 — plus `fixtures/contract-seed.sql` and a pinned `fixtures/skills/` tree.)*
-- [ ] Execute initial Java/Python comparisons after the corresponding phase 3 routes are implemented. *(unchanged — **gated on phase 3**. Python has no business routes yet, so there is nothing honest to compare end to end.)*
+- [ ] Execute initial Java/Python comparisons after the corresponding phase 3 routes are implemented. *(partially done 2026-09-23 — the three featured GETs now exist in `backend-python/` and an offline comparison reports 3/3 `matched: true` with zero differences against `tests/contract/golden/java-featured.json`. Still open: a **live** record-and-compare against a running Python under `reactor_py_ro`, blocked on the operator-supplied secret (R-34). Not claimed complete.)*
 
 ### Phase 2 verification log (2026-09-23)
 
@@ -201,3 +201,116 @@ round-trip, offline CLI and pointer hardening.
   `useTimes`; and the visitor cookie **does** carry `Secure` under the `prod`
   profile, contrary to the `application.yml` default. Both are recorded in
   `risk-register.md` and the ExecPlan.
+
+## Phase 3A verification log (2026-09-23)
+
+Scope: the three public featured GETs in `backend-python/`
+(`/api/agent/featured-conversations/home`, `/api/agent/featured-conversations`,
+`/api/agent/featured-conversations/{featuredId}`). Read-only SQL, no identity
+writes, no application-level dual write, no Nginx change, no admin writes.
+ExecPlan: `docs/python-migration/execplans/featured-public-read.md`.
+
+Real commands, real results. Blocked gates are labelled blocked and are not
+reported as green.
+
+**Python gates:**
+
+```
+uv run ruff check .                     → All checks passed!
+uv run mypy src                         → Success: no issues found in 48 source files
+uv run pytest -m "not integration"      → 183 passed, 23 deselected
+uv run pytest tests/unit/test_tool_projectors.py → 50 passed
+```
+
+Unit count went 44 → 133 → **183** across the slice (the second jump is the
+tool-projector rewrite; see below).
+
+**Java characterization:**
+
+```
+mvn -B -pl Reactor-agent-app -am -Dtest='FeaturedConversation*' \
+  -DskipTests=false -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+Module total 28 run / 7 error — **all seven are `initializationError` on nested
+stub classes**, a known surefire 2.6 quirk (R-31). Class-level results are the
+signal per R-02/R-18:
+
+```
+FeaturedConversationPublicQueryApplicationServiceTest   13 run, 0 failures, 0 errors
+FeaturedConversationRepositoryTest                       2 run, 0 failures, 0 errors
+FeaturedConversationAdminControllerTest                  3 run, 0 failures, 0 errors
+```
+
+**Offline contract comparison (3/3):**
+
+```bash
+cd backend-python
+CONTRACT_VISITOR_TOKEN=fixture-raw-token CONTRACT_SESSION_ID=fixture-session \
+CONTRACT_FEATURED_ID=fixture-featured \
+  uv run reactor-contract tests/contract/cases/phase3-featured.json \
+    --golden tests/contract/golden/java-featured.json \
+    --response build/python-responses.json \
+    --output build/contract-report-offline.json
+```
+
+Result: exit 0, `cases: 3`, `skipped: []`, 3/3 `matched: true`,
+`differences: []`.
+
+> **A first run of this reported only 2 of 3 cases and still exited 0.** The
+> comparator re-substitutes `${CONTRACT_*}` at *compare* time; without
+> `CONTRACT_FEATURED_ID` the detail case lands in `skipped` as
+> `"featured-detail-fixture: missing CONTRACT_FEATURED_ID"`. **Gate on
+> `len(cases)` and `skipped == []`, never on the exit code alone** (R-32). The
+> diff field is named `differences` (empty → `[]`), not `diffs`.
+
+> **What this does and does not prove.** Both sides are stored documents:
+> `tests/contract/golden/java-featured.json` (Java) vs `build/python-responses.json`
+> (Python, recorded earlier in the slice). It is **not** a live re-record. The
+> tool-projector rewrite landed *after* that recording, so the saved responses
+> predate it. The rewrite cannot affect these three cases because
+> `tests/contract/fixtures/contract-seed.sql` inserts **no**
+> `ai_agent_tool_*` / `ai_agent_artifact` rows — those code paths are never
+> reached. That is an inference from the seed contents, not a re-run.
+
+**Compose:**
+
+```
+MYSQL_PASSWORD=test-only MYSQL_ROOT_PASSWORD=test-only \
+REACTOR_PY_MYSQL_PASSWORD=test-only-ro docker compose config --quiet   → exit 0
+```
+
+`reactor-backend-python` now connects as `reactor_py_ro` via the dedicated
+`REACTOR_PY_MYSQL_USER` / `REACTOR_PY_MYSQL_PASSWORD` variables (deliberately
+not `MYSQL_USER`/`MYSQL_PASSWORD`). This closes the R-22 phase-3 half.
+
+**Frontend consumer tests (unchanged `ui/`):** 4 files / 6 tests passed via
+`npx vitest run`.
+
+**Tool-projector rewrite (same slice, later pass).** The Decision Log's original
+"tool 帧族内层形状显式 deferred" call was superseded the same day: all 10
+projector families were ported byte-exact from Java source (plus
+`ArtifactRelativePath`, `ToolArtifactFormatter.normalizeWorkspacePath`,
+`mergeFileRefs`' three branches, `markMissingLinks`' `String.valueOf(null) ==
+"null"` semantics) and pinned by 50 key-order unit tests rather than by golden.
+Three real repository defects were fixed on the way: `_output_file_refs` was
+missing `visibility == "visible"`; deep_search hydration exposed per-stage named
+keys instead of `stages` + `_rebuild_chapters`; `fileRefs` was attached to tools
+whose Java output type declares none.
+
+**Blocked — not done, not claimed:**
+
+- `TEST_MYSQL_URL=… uv run pytest -m integration` re-run. The previous 23-test
+  run predates the repository changes, and `featured_read_edge_seed.sql`
+  exercises exactly the changed paths (`_output_file_refs`, `_FILE_REF_TOOLS`).
+  Needs the `reactor_py_ro` password.
+- Contract re-record + R-28 repeatability re-check. Needs the same secret and a
+  DB seeded with **only** `contract-seed.sql` (R-33).
+- `_rebuild_chapters` has no fixture coverage — neither seed inserts
+  `ai_agent_tool_output_deep_search`.
+- `UserQuestionReader` is ported as a Protocol defaulting to `None` (matching
+  Java's null-repo constructor path) and is not bound to a DB adapter.
+
+The `reactor_py_ro` password is deliberately absent from the repository and must
+be supplied by the operator out of band. Hunting for it in MySQL client
+credential stores is prohibited (R-34).

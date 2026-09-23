@@ -1,10 +1,16 @@
 # Database ownership matrix
 
-Last updated: 2026-09-22
+Last updated: 2026-09-23
 
 Shared reads are permitted during migration. For a given operation, Java and Python must never both be active writers. No application-level dual write is allowed. Ownership is recorded at **operation** granularity where a table has more than one writer path.
 
-Current state (verified 2026-09-22): the Python coexistence backend executes no DML at all — its only SQL is `SELECT 1` in `infrastructure/database/engine.py`. All 33 tables are written exclusively by Java today. There is **no live dual-write path**. The single-writer rule is therefore doc-only so far: both services currently share the same read-write MySQL account `reactor`, and the phase-3 read-only database account is not yet provisioned.
+Current state (verified 2026-09-23): the Python coexistence backend executes no DML at all — its only SQL is `SELECT 1` in `infrastructure/database/engine.py`. All 33 tables are written exclusively by Java today. There is **no live dual-write path**.
+
+The phase-3 read-only account **`reactor_py_ro`** is now provisioned as a reviewed plain-SQL migration, `db/migrations/20260923_provision_phase3_readonly_account.sql`. It holds `GRANT USAGE ON *.*` and `GRANT SELECT ON \`<database>\`.*` and nothing else — every write statement is rejected with `ERROR 1142`. Verified on 2026-09-23 against a throwaway MySQL 9.3 with the real schema loaded: SELECT works through the project's own `asyncmy` driver, and INSERT/UPDATE/DELETE/TRUNCATE/DROP/ALTER/CREATE/INDEX are all denied. Re-applying the migration is idempotent and never widens a grant.
+
+What is **not** done: nothing on the Python *connection* side — `reactor-backend-python` now connects as `reactor_py_ro` (see `docker-compose.yml` → `REACTOR_PY_MYSQL_USER: ${REACTOR_PY_MYSQL_USER:-reactor_py_ro}`, `REACTOR_PY_MYSQL_PASSWORD: ${REACTOR_PY_MYSQL_PASSWORD:?...}`), which closes the phase-3A acceptance item "Python serves the three interfaces under a read-only MySQL account". The remaining gap is on the **write** side: Java and Python would still share `reactor` for writes until phase 4 provisions per-writer credentials (see the guardrail table below). Until those land, "single writer" for writes is still only a process control.
+
+**Caution — do not reuse the write account for the Python service.** The compose variables are deliberately *not* `MYSQL_USER`/`MYSQL_PASSWORD`; pointing `REACTOR_PY_MYSQL_USER` at `reactor` silently removes the technical enforcement that `reactor_py_ro` provides.
 
 | Table | Current reader/writer | Transaction or concurrency behavior | Python takeover |
 |---|---|---|---|
@@ -61,4 +67,15 @@ Schema changes are out of scope unless separately approved. Today the repository
 
 ## Technical guardrail gap
 
-The single-writer rule currently has no enforcement: both `reactor-backend` and `reactor-backend-python` connect with the same read-write account `reactor` against the same schema. Before any Python writer is deployed, a read-only account for phase-3 reads and per-writer credentials for phase-4 writes must be provisioned. Until then, "single writer" is a process control only.
+**Half closed 2026-09-23.** Two credentials were required to give the single-writer rule teeth; one now exists.
+
+| Credential | Status | Effect |
+|---|---|---|
+| Read-only account for phase-3 reads | **provisioned and in force 2026-09-23** — `reactor_py_ro`, `db/migrations/20260923_provision_phase3_readonly_account.sql` | a Python read path physically cannot write. `reactor-backend-python` connects as `reactor_py_ro` (`docker-compose.yml`); INSERT/UPDATE/DELETE raise `ERROR 1142`, asserted by `backend-python/tests/integration/test_readonly_account_denies_writes.py`. |
+| Per-writer credentials for phase-4 writes | **not provisioned** | Java and Python would still share `reactor` for writes. |
+
+Remaining gap, precisely: **phase-3A is closed** — `reactor-backend-python` connects as `reactor_py_ro` and the compose environment takes the secret as the required `REACTOR_PY_MYSQL_PASSWORD` variable. What is still open is writes: `reactor-backend` (Java) keeps `reactor`, and phase 4 has not provisioned per-writer write credentials, so a future Python writer would still share that account. Per-writer write credentials are a phase-4 prerequisite and are **not** to be invented early.
+
+**Residual verification gap (2026-09-23):** the 1142 rejection was re-verified against a throwaway MySQL 9.3 during phase 3A, and the integration suite asserts it — but that suite has **not** been re-run against the current repository code, because doing so needs the `reactor_py_ro` password, which is deliberately absent from the repository and must be supplied by the operator. Treat "in force for the running stack" as a **configuration** claim backed by `docker-compose.yml` and the 1142 assertions, not as a fresh end-to-end run.
+
+The password for `reactor_py_ro` is deliberately absent from the repository. The migration takes it as the session variable `@reactor_py_ro_password` and aborts with a self-explanatory error if it is unset, empty, shorter than 12 characters, or outside `[A-Za-z0-9_+=.@-]`. Never pass it on the `mysql` command line.

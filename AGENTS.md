@@ -111,7 +111,7 @@ mvn -B -pl Reactor-agent-case -am -DskipTests=false test
 完整 Java app 套件当前存在已登记的历史失败；必须如实报告，不得重新跳过或把它误称为全绿。涉及 Compose 时先做语法校验：
 
 ```bash
-MYSQL_PASSWORD=test-only MYSQL_ROOT_PASSWORD=test-only docker compose config --quiet
+MYSQL_PASSWORD=test-only MYSQL_ROOT_PASSWORD=test-only REACTOR_PY_MYSQL_PASSWORD=test-only-ro docker compose config --quiet
 ```
 
 需要共存基线冒烟时（可重复执行的 Compose smoke；只用 test-only 凭证）：

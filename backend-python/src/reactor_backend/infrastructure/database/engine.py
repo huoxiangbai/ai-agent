@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Protocol
 
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 
 from reactor_backend.config import Settings
 
@@ -17,6 +19,9 @@ class DatabaseProtocol(Protocol):
 
 
 class Database:
+    """Connection factory + lifecycle. ``DatabaseProtocol`` is intentionally not
+    extended: ``tests/unit/test_health.py::FakeDatabase`` depends on its shape."""
+
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._engine: AsyncEngine | None = None
@@ -38,6 +43,16 @@ class Database:
             raise RuntimeError("database engine is not started")
         async with self._engine.connect() as connection:
             await connection.execute(text("SELECT 1"))
+
+    def engine(self) -> AsyncEngine | None:
+        return self._engine
+
+    @asynccontextmanager
+    async def connect(self) -> AsyncIterator[AsyncConnection]:
+        if self._engine is None:
+            raise RuntimeError("database engine is not started")
+        async with self._engine.connect() as connection:
+            yield connection
 
     async def close(self) -> None:
         if self._engine is None:

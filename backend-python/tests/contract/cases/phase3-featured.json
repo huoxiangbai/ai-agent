@@ -1,0 +1,28 @@
+{
+  "cases": [
+    {
+      "name": "featured-home-default",
+      "method": "GET",
+      "path": "/api/agent/featured-conversations/home"
+    },
+    {
+      "name": "featured-list-first-page",
+      "method": "GET",
+      "path": "/api/agent/featured-conversations",
+      "query": {
+        "pageNo": "1",
+        "pageSize": "20"
+      }
+    },
+    {
+      "name": "featured-detail-fixture",
+      "method": "GET",
+      "path": "/api/agent/featured-conversations/${CONTRACT_FEATURED_ID}",
+      "normalization": {
+        "ignored_json_pointers": [
+          "/body/data/historyDetail/runs/*/replayFrames/*/resultMap/eventData/taskId"
+        ]
+      }
+    }
+  ]
+}

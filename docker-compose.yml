@@ -126,8 +126,10 @@ services:
       REACTOR_PY_MYSQL_HOST: mysql
       REACTOR_PY_MYSQL_PORT: 3306
       REACTOR_PY_MYSQL_DATABASE: ${MYSQL_DATABASE:-ai-agent-station}
-      REACTOR_PY_MYSQL_USER: ${MYSQL_USER:-reactor}
-      REACTOR_PY_MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      # Python 侧只读账号（R-22 单写者）：切片只提供 public GET，默认连 reactor_py_ro。
+      # Java 侧继续用 MYSQL_USER（保留写权限），两边账号不得互换。
+      REACTOR_PY_MYSQL_USER: ${REACTOR_PY_MYSQL_USER:-reactor_py_ro}
+      REACTOR_PY_MYSQL_PASSWORD: ${REACTOR_PY_MYSQL_PASSWORD:?REACTOR_PY_MYSQL_PASSWORD is required}
     ports:
       - "${PYTHON_BACKEND_PORT:-8200}:8200"
     volumes:
