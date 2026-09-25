@@ -6,6 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from reactor_backend.api.middleware import JAVA_COMPAT_VARY
 from reactor_backend.api.presenters import error_response, spring_error_response
 from reactor_backend.shared.errors import ApiError
 from reactor_backend.shared.responses import ApiResponse
@@ -51,7 +52,16 @@ def install_exception_handlers(app: FastAPI) -> None:
             "unhandled_request_error",
             error_type=type(error).__name__,
         )
-        return spring_error_response(500, request.url.path)
+        response = spring_error_response(500, request.url.path)
+        # Starlette routes ``Exception`` to ``ServerErrorMiddleware``, which sits
+        # *outside* the user middleware stack — so the Vary stamping in
+        # RequestContextMiddleware never sees this response. Java's CorsFilter does
+        # run (it is a servlet filter, below the error dispatch), which is why the
+        # unhandled-500 body is the one response that would otherwise differ.
+        # Appending here cannot double up: nothing below adds it for this path.
+        for value in JAVA_COMPAT_VARY:
+            response.headers.append("Vary", value)
+        return response
 
 
 # ``error_response`` stays exported for application-level failures that want an

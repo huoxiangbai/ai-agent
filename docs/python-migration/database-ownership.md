@@ -1,10 +1,10 @@
 # Database ownership matrix
 
-Last updated: 2026-09-23
+Last updated: 2026-09-25
 
 Shared reads are permitted during migration. For a given operation, Java and Python must never both be active writers. No application-level dual write is allowed. Ownership is recorded at **operation** granularity where a table has more than one writer path.
 
-Current state (verified 2026-09-23): the Python coexistence backend executes no DML at all — its only SQL is `SELECT 1` in `infrastructure/database/engine.py`. All 33 tables are written exclusively by Java today. There is **no live dual-write path**.
+Current state (verified 2026-09-25): Python executes DML on exactly **one** table. `ai_agent_featured_conversation`'s four admin write operations are owned by Python (`create`/`update`/`online`/`offline`) and the public featured reads were cut over in phase 3; every other table is still written exclusively by Java. There is **no live dual-write path**: the featured-admin writes are fenced by two independent layers (below), and both were exercised on 2026-09-25 rather than assumed.
 
 The phase-3 read-only account **`reactor_py_ro`** is now provisioned as a reviewed plain-SQL migration, `db/migrations/20260923_provision_phase3_readonly_account.sql`. It holds `GRANT USAGE ON *.*` and `GRANT SELECT ON \`<database>\`.*` and nothing else — every write statement is rejected with `ERROR 1142`. Verified on 2026-09-23 against a throwaway MySQL 9.3 with the real schema loaded: SELECT works through the project's own `asyncmy` driver, and INSERT/UPDATE/DELETE/TRUNCATE/DROP/ALTER/CREATE/INDEX are all denied. Re-applying the migration is idempotent and never widens a grant.
 
@@ -39,7 +39,7 @@ What is **not** done: nothing on the Python *connection* side — `reactor-backe
 | `ai_agent_tool_output_emit_ui_tree` | GenUI tool-output/replay | append keyed by invocation/request/tool-call | phase 7 |
 | `ai_agent_tool_output_emit_ui_patch` | GenUI tool-output/replay | append keyed by invocation/request/tool-call | phase 7 |
 | `ai_agent_artifact` | artifact ledger/history | batch insert; queried by run/tool/source | **operation-granular:** write via `POST /api/agent/file/upload` → phase 6; write via in-run tool → phase 7; reads phase 6 |
-| `ai_agent_featured_conversation` | public/admin featured services | upsert, status update, online/admin pagination | phase 3 reads (public featured GETs — the P3 pilot), phase 4 writes |
+| `ai_agent_featured_conversation` | **operation-granular — Python owns every operation on this table as of 2026-09-25:** public featured GETs (phase 3), admin `query-list`, admin `create`, admin `update`, admin `online`, admin `offline` (phase 4) | upsert, status update, online/admin pagination. Java's admin service has **no** `@Transactional` — each mapper call is its own auto-commit statement, so `create` is deliberately *not* atomic; Python must not wrap it. `upsert`'s `ON DUPLICATE KEY UPDATE` touches only title/summary/cover/tags/sort/updated_by/updated_at/deleted | **transferred.** Exact-path Nginx fragment `docker/nginx-featured-python.d/featured-admin.conf` is the switch; drill run 2026-09-25 proved cutover **0.087s** and reverse rollback **0.084s** apply + **0.512s** verified recovery |
 | `ai_agent_ltm_curated_entry` | LTM service | insert, content update, soft delete, active selection | phase 8 |
 | `ai_agent_working_memory_turn` | working-memory store | ordered turn allocation, insert, readiness invalidation | phase 8 |
 | `ai_agent_working_memory_message` | working-memory/history/search | batch insert plus ordered/full-text/history queries | history reads stay ledger-backed until phase 8; interim behaviour needs its own parity check. Full ownership phase 8 |
@@ -67,14 +67,21 @@ Schema changes are out of scope unless separately approved. Today the repository
 
 ## Technical guardrail gap
 
-**Half closed 2026-09-23.** Two credentials were required to give the single-writer rule teeth; one now exists.
+**Closed 2026-09-25.** Two credentials were required to give the single-writer rule teeth; both now exist.
 
 | Credential | Status | Effect |
 |---|---|---|
 | Read-only account for phase-3 reads | **provisioned and in force 2026-09-23** — `reactor_py_ro`, `db/migrations/20260923_provision_phase3_readonly_account.sql` | a Python read path physically cannot write. `reactor-backend-python` connects as `reactor_py_ro` (`docker-compose.yml`); INSERT/UPDATE/DELETE raise `ERROR 1142`, asserted by `backend-python/tests/integration/test_readonly_account_denies_writes.py`. |
-| Per-writer credentials for phase-4 writes | **not provisioned** | Java and Python would still share `reactor` for writes. |
+| Per-writer credentials for phase-4 writes | **provisioned and in force 2026-09-25** — `reactor_py_featured_writer`, `db/migrations/20260923_provision_phase4_featured_writer_account.sql` | Python's writer account holds `GRANT SELECT ON \`<db>\`.*` plus `GRANT INSERT, UPDATE ON \`<db>\`.ai_agent_featured_conversation` and **nothing else** — no `DELETE` (soft delete is an `UPDATE`), no DDL. Any write outside that one table fails with `ERROR 1142`. Asserted by `backend-python/tests/integration/test_featured_writer_account_scope.py`. Layer 1 of the writer fence. |
 
-Remaining gap, precisely: **phase-3A is closed** — `reactor-backend-python` connects as `reactor_py_ro` and the compose environment takes the secret as the required `REACTOR_PY_MYSQL_PASSWORD` variable. What is still open is writes: `reactor-backend` (Java) keeps `reactor`, and phase 4 has not provisioned per-writer write credentials, so a future Python writer would still share that account. Per-writer write credentials are a phase-4 prerequisite and are **not** to be invented early.
+Remaining gap, precisely: **phase-3A is closed** — `reactor-backend-python` connects as `reactor_py_ro` and the compose environment takes the secret as the required `REACTOR_PY_MYSQL_PASSWORD` variable. **Phase 4's write gap is closed too**: the featured-admin writer uses `reactor_py_featured_writer` (never `reactor_py_ro`, never `reactor`), so Java and Python cannot both hold a write grant on the same table.
+
+**Two-layer writer fence for `ai_agent_featured_conversation` (both verified 2026-09-25):**
+
+1. **Account layer** — `reactor_py_featured_writer` can only `INSERT`/`UPDATE` that one table; anything else is `ERROR 1142`.
+2. **Owner flag** — `REACTOR_PY_FEATURED_ADMIN_WRITE_OWNER`, **fail-closed with a default of `java`**. Until an operator sets it to `python` as a documented cutover step, all four write routes answer HTTP 200 + `{"code":"0001", ...}` *before any SQL*, while `query-list` and `/internal/health/ready` keep working. Observed live on 2026-09-25 with two Python instances differing only in that variable; asserted for every non-`python` value by `backend-python/tests/unit/test_featured_admin.py::test_fence_refuses_every_owner_but_python` and `...::test_closed_fence_blocks_all_four_writes_before_any_sql` (zero round-trips, not even a read).
+
+Because the fence fires before SQL, a mis-ordered deployment fails closed instead of writing: routing Python traffic with the flag still at `java` produces `0001` envelopes, not silent successes.
 
 **Residual verification gap (2026-09-23):** the 1142 rejection was re-verified against a throwaway MySQL 9.3 during phase 3A, and the integration suite asserts it — but that suite has **not** been re-run against the current repository code, because doing so needs the `reactor_py_ro` password, which is deliberately absent from the repository and must be supplied by the operator. Treat "in force for the running stack" as a **configuration** claim backed by `docker-compose.yml` and the 1142 assertions, not as a fresh end-to-end run.
 

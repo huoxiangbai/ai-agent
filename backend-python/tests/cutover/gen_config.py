@@ -44,21 +44,25 @@ WRAPPER_TAIL = """\
 """
 
 # (label, old, new) — each `old` must occur exactly once in the production file.
+# `new` is a ``str.format`` template over ``prefix``/``listen_port``/``java_port``/
+# ``python_port``/``tool_port``. The upstream *ports* are parameters so the drill
+# can bind Java/Python to free ports when :8100/:8200 are held by another process
+# (the defaults reproduce the phase-3B drill exactly).
 SUBSTITUTIONS: tuple[tuple[str, str, str], ...] = (
     (
         "java upstream hostname",
         "server reactor-backend:8100;",
-        "server 127.0.0.1:8100;",
+        "server 127.0.0.1:{java_port};",
     ),
     (
         "python upstream hostname",
         "server reactor-backend-python:8200;",
-        "server 127.0.0.1:8200;",
+        "server 127.0.0.1:{python_port};",
     ),
     (
         "tool upstream hostname",
         "server reactor-tool:1601;",
-        "server 127.0.0.1:1601;",
+        "server 127.0.0.1:{tool_port};",
     ),
     (
         "listen port",
@@ -78,8 +82,23 @@ SUBSTITUTIONS: tuple[tuple[str, str, str], ...] = (
 )
 
 
-def generate(source: Path, prefix: Path, listen_port: int) -> str:
+def generate(
+    source: Path,
+    prefix: Path,
+    listen_port: int,
+    *,
+    java_port: int = 8100,
+    python_port: int = 8200,
+    tool_port: int = 1601,
+) -> str:
     body = source.read_text(encoding="utf-8")
+    replacements = {
+        "prefix": str(prefix),
+        "listen_port": listen_port,
+        "java_port": java_port,
+        "python_port": python_port,
+        "tool_port": tool_port,
+    }
     for label, old, new in SUBSTITUTIONS:
         count = body.count(old)
         if count != 1:
@@ -88,10 +107,7 @@ def generate(source: Path, prefix: Path, listen_port: int) -> str:
                 f"({old!r}) in {source}, found {count}. The production nginx.conf "
                 "drifted — update SUBSTITUTIONS before running the drill."
             )
-        body = body.replace(
-            old,
-            new.format(prefix=str(prefix), listen_port=listen_port),
-        )
+        body = body.replace(old, new.format(**replacements))
     return (
         WRAPPER_HEAD.format(prefix=str(prefix))
         + body
@@ -104,10 +120,30 @@ def main() -> int:
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--prefix", type=Path, required=True)
     parser.add_argument("--listen-port", type=int, default=18080)
+    parser.add_argument(
+        "--java-upstream-port",
+        type=int,
+        default=8100,
+        help="port of the Java backend (default 8100; override when :8100 is held)",
+    )
+    parser.add_argument(
+        "--python-upstream-port",
+        type=int,
+        default=8200,
+        help="port of the Python backend (default 8200; override when :8200 is held)",
+    )
+    parser.add_argument("--tool-upstream-port", type=int, default=1601)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
-    text = generate(args.source, args.prefix, args.listen_port)
+    text = generate(
+        args.source,
+        args.prefix,
+        args.listen_port,
+        java_port=args.java_upstream_port,
+        python_port=args.python_upstream_port,
+        tool_port=args.tool_upstream_port,
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(text, encoding="utf-8")
     print(f"wrote {args.output} ({len(text)} bytes)")

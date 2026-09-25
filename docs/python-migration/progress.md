@@ -1,6 +1,6 @@
 # Java → Python migration progress
 
-Last updated: 2026-09-23
+Last updated: 2026-09-25
 
 | Phase | Status | Evidence | Exit gate |
 |---|---|---|---|
@@ -8,7 +8,7 @@ Last updated: 2026-09-23
 | 1. Python skeleton | Complete (re-verified 2026-09-22) | image built; MySQL 8.4 initialized 33 tables; live/ready 200; **15 unit tests**, Ruff and mypy pass | passed: Python service and database are healthy; full-stack build is a repeatable coexistence check |
 | 2. Contract harness | In progress | reusable HTTP/SSE capture, endpoint allowlists, sanitized Java recording, diff CLI and initial manifest; deferred registry now explicit | one documented command records the first sanitized goldens, and the runner can compare a Python response against a stored Java golden offline. **This is phase-2 scope and does not wait for phase 3 routes** (aligned with `staged-prompts.md` phase 2 Done when). The first live dual comparison follows once phase 3 routes exist |
 | 3. Read-only APIs | **3A + 3B implemented (2026-09-23)** | 3 public featured GETs in `backend-python/`, now **live behind Nginx** on exactly those three paths; 185 non-integration tests; 50 tool-projector key-order tests; Java characterization 13/13; contract **7/7** zero diffs (`phase3-featured.json` 3/3 + `phase3-featured-errors.json` 4/4, both `skipped: []`); cutover/rollback drill green in all four phases with `$upstream_addr` attribution. 3B log below | 3A done when: unit/integration/contract parity + the three routes serve under a read-only MySQL account + ExecPlan holds cutover/rollback. 3B done when: three paths hit Python, everything else hits Java, UI-shaped requests + contract + frontend green before/after, 5xx not increased, rollback actually performed and verified then re-applied, syntax check + rollback timing recorded. **Both met.** Residual: the collation probe row in `api-contracts.md` is still unprobed (reassigned to phase 4). Scope remains the three public featured GETs only |
-| 4. CRUD/auth | Not started | — | exclusive write ownership and concurrency/rollback tests. Also owns visitor identity writes and the other filter-protected GETs |
+| 4. CRUD/auth | **First slice done (2026-09-25): `featured-admin`**; visitor identity writes, capability write, and the other admin CRUD families **not started** | the 5 admin routes on `/api/v1/admin/featured-conversations` serve from Python behind an exact-path Nginx fragment; **256** non-integration tests, **47** integration tests; ruff + mypy clean; contract **15/15** `skipped: []` byte-identical on re-record; cloned-DB parity `differences=0` over 32 cases with all four affected-table groups equal; drill green in `pre`/`on-python`/`on-java` (17 probes each, `routing_violations=0`, `diffs_vs_reference=0`), cutover **0.087s**, rollback **0.084s** apply + **0.512s** verified; two-layer writer fence observed live (`owner=java` → four writes `200 + 0001` with zero SQL). Log below | exclusive write ownership and concurrency/rollback tests **met for this slice**: one writer account scoped to one table, a fail-closed owner flag, `create`/`update` transaction-rollback tests, duplicate/unique-key, idempotent and concurrent-race tests, and both switch directions drilled. Not met for the phase: visitor identity writes, capability write, and the remaining admin families still have no owner fence. Also owns the other filter-protected GETs. The collation probe row in `api-contracts.md` is still unprobed (owner phase 4, not closed by this slice) |
 | 5. SSE/run control | Not started | — | lifecycle/cancellation parity with no leaked tasks |
 | 6. Tool/Skill/MCP | Not started | — | fake-backed compatibility and workspace security tests |
 | 7. Core Agent Runtime | Not started | — | recorded state/event/ledger parity |
@@ -314,3 +314,58 @@ whose Java output type declares none.
 The `reactor_py_ro` password is deliberately absent from the repository and must
 be supplied by the operator out of band. Hunting for it in MySQL client
 credential stores is prohibited (R-34).
+
+## Phase 4 verification log (2026-09-25) — first slice: `featured-admin`
+
+Scope: the five admin routes on `/api/v1/admin/featured-conversations` and the
+single table they own, `ai_agent_featured_conversation`. ExecPlan:
+`docs/python-migration/execplans/featured-admin.md`. Nothing else in phase 4
+(visitor identity, capability write, other admin families) was touched.
+
+**Gates, re-run 2026-09-25 on the final tree:**
+
+| Command | Result |
+|---|---|
+| `uv run ruff check src/ tests/` | All checks passed! |
+| `uv run mypy src` | Success: no issues found in 52 source files |
+| `uv run pytest -m "not integration"` | **256 passed**, 47 deselected, 1.82s |
+| `set -a; . build/admin-mysql/test.env; set +a; uv run pytest -m integration` (:13307) | **47 passed**, 256 deselected |
+| `reactor-contract …/phase4-featured-admin.json --record-java` then `cmp` against the committed golden | **byte-identical** |
+| `reactor-contract … --golden tests/contract/golden/java-featured-admin.json` (live Python :18200) | `cases=15 skipped=[] differing=[] matched=15`, exit 0 |
+| `tests/parity/featured_admin_parity.py` (two DBs cloned from one snapshot, Java then Python) | `run=d29acc404650 cases=32 differences=0`, `failures={responses:[], tables:{}, stamps:{}, untouched:{}}`, `warnings.sort_order_guard=[]` |
+| `tests/cutover/admin_drill.sh` `check pre` → `cutover` → `check on-python` → `rollback` → `check on-java` | each check: 17 probes, `routing_violations=0`, `diffs_vs_reference=0`, contract 15/`skipped=[]`, 11 UI tests passed. Cutover **0.087s**; rollback apply **0.084s**, end-to-end verified **0.512s** |
+| owner fence, live (`REACTOR_PY_FEATURED_ADMIN_WRITE_OWNER=java`) | all four writes `200 + {"code":"0001"}` with **zero SQL**; `query-list` and `/internal/health/ready` still 200 |
+| `cd ui && npx vitest run` (the 3 admin consumer files) | 11 passed |
+
+**Parity — how "before/after are equivalent" was actually shown.** One snapshot
+was loaded into `ai_agent_station_java` and `ai_agent_station_py` (the script
+exits 2 if both URLs name the same database). The identical 32-case sequence ran
+against Java first, then Python, each on its own database — never two writers on
+one — and the responses, the full contents of `ai_agent_featured_conversation`,
+the `ai_agent_dialogue_session` non-write witness (compared cross-side *and*
+pre-vs-post with `update_time` kept), and the public read paths after
+`online`/`offline` all came back equal: `differences=0`.
+
+**A clone pair drift this run caught (worth recording).** The first parity
+invocation of the day exited 1 with `differences=7`, naming a `ro-denied` row
+present only on the Python side and `fixture-featured.summary='denied'`. Root
+cause: *my own* earlier integration attempt had exported
+`TEST_MYSQL_URL` pointing at the **writer** account on `ai_agent_station_py`,
+so the read-only-denial test's `INSERT`/`UPDATE` succeeded there (its `DELETE`
+and `CREATE` were denied, which is exactly why the row survived). Not a
+repository defect — and precisely the class of contamination R-33 describes. The
+harness did its job: it reported the drift as a named finding before any write
+rather than as a mystery diff at the end. Repair was to restore the two columns
+and re-run: `differences=0`.
+
+**Blocked / not claimed:**
+
+- Contract re-record against **production** credentials and the repository
+  integration suite under `reactor_py_ro` — R-34, needs the operator's secret.
+  Everything above ran against throwaway accounts on `127.0.0.1:13307`.
+- Java characterization (`mvn -pl Reactor-agent-app -am -Dtest='FeaturedConversation*'`)
+  was **not** re-run for this slice: the app baseline is red for unrelated
+  reasons (R-02/R-18). The byte-identical `--record-java` re-record plus the
+  32-case response equality are the Java-side evidence used instead.
+- The `status='ONLINE'` collation probe row in `api-contracts.md` is still
+  unprobed (owner phase 4, not closed by this slice).

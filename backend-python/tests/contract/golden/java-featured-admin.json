@@ -1,0 +1,236 @@
+{
+  "mode": "java-baseline",
+  "base_url": "http://127.0.0.1:18100",
+  "cases": [
+    {
+      "name": "admin-query-list-lombok-defaults",
+      "snapshot": {
+        "status_code": 200,
+        "content_type": "application/json",
+        "headers": {},
+        "cookies": [],
+        "body": {
+          "code": "0000",
+          "info": "成功",
+          "data": {
+            "total": "<contract-ignored>",
+            "list": "<contract-ignored>"
+          }
+        }
+      }
+    },
+    {
+      "name": "admin-query-list-bad-page-no-type",
+      "snapshot": {
+        "status_code": 400,
+        "content_type": "application/json",
+        "headers": {},
+        "cookies": [],
+        "body": {
+          "timestamp": "<contract-ignored>",
+          "status": 400,
+          "error": "Bad Request",
+          "path": "/api/v1/admin/featured-conversations/query-list"
+        }
+      }
+    },
+    {
+      "name": "admin-create-missing-body",
+      "snapshot": {
+        "status_code": 400,
+        "content_type": "application/json",
+        "headers": {},
+        "cookies": [],
+        "body": {
+          "timestamp": "<contract-ignored>",
+          "status": 400,
+          "error": "Bad Request",
+          "path": "/api/v1/admin/featured-conversations/create"
+        }
+      }
+    },
+    {
+      "name": "admin-create-blank-session",
+      "snapshot": {
+        "status_code": 500,
+        "content_type": "application/json",
+        "headers": {},
+        "cookies": [],
+        "body": {
+          "timestamp": "<contract-ignored>",
+          "status": 500,
+          "error": "Internal Server Error",
+          "path": "/api/v1/admin/featured-conversations/create"
+        }
+      }
+    },
+    {
+      "name": "admin-create-bad-field-type",
+      "snapshot": {
+        "status_code": 400,
+        "content_type": "application/json",
+        "headers": {},
+        "cookies": [],
+        "body": {
+          "timestamp": "<contract-ignored>",
+          "status": 400,
+          "error": "Bad Request",
+          "path": "/api/v1/admin/featured-conversations/create"
+        }
+      }
+    },
+    {
+      "name": "admin-update-missing-featured-id",
+      "snapshot": {
+        "status_code": 500,
+        "content_type": "application/json",
+        "headers": {},
+        "cookies": [],
+        "body": {
+          "timestamp": "<contract-ignored>",
+          "status": 500,
+          "error": "Internal Server Error",
+          "path": "/api/v1/admin/featured-conversations/update"
+        }
+      }
+    },
+    {
+      "name": "admin-update-unknown-featured-id",
+      "snapshot": {
+        "status_code": 500,
+        "content_type": "application/json",
+        "headers": {},
+        "cookies": [],
+        "body": {
+          "timestamp": "<contract-ignored>",
+          "status": 500,
+          "error": "Internal Server Error",
+          "path": "/api/v1/admin/featured-conversations/update"
+        }
+      }
+    },
+    {
+      "name": "admin-online-missing-operator",
+      "snapshot": {
+        "status_code": 400,
+        "content_type": "application/json",
+        "headers": {},
+        "cookies": [],
+        "body": {
+          "timestamp": "<contract-ignored>",
+          "status": 400,
+          "error": "Bad Request",
+          "path": "/api/v1/admin/featured-conversations/online/contract-no-such-featured"
+        }
+      }
+    },
+    {
+      "name": "admin-offline-missing-operator",
+      "snapshot": {
+        "status_code": 400,
+        "content_type": "application/json",
+        "headers": {},
+        "cookies": [],
+        "body": {
+          "timestamp": "<contract-ignored>",
+          "status": 400,
+          "error": "Bad Request",
+          "path": "/api/v1/admin/featured-conversations/offline/contract-no-such-featured"
+        }
+      }
+    },
+    {
+      "name": "admin-online-unknown-row",
+      "snapshot": {
+        "status_code": 200,
+        "content_type": "application/json",
+        "headers": {},
+        "cookies": [],
+        "body": {
+          "code": "0000",
+          "info": "成功",
+          "data": false
+        }
+      }
+    },
+    {
+      "name": "admin-offline-unknown-row",
+      "snapshot": {
+        "status_code": 200,
+        "content_type": "application/json",
+        "headers": {},
+        "cookies": [],
+        "body": {
+          "code": "0000",
+          "info": "成功",
+          "data": false
+        }
+      }
+    },
+    {
+      "name": "admin-create-method-not-allowed",
+      "snapshot": {
+        "status_code": 405,
+        "content_type": "application/json",
+        "headers": {
+          "allow": "POST"
+        },
+        "cookies": [],
+        "body": {
+          "timestamp": "<contract-ignored>",
+          "status": 405,
+          "error": "Method Not Allowed",
+          "path": "/api/v1/admin/featured-conversations/create"
+        }
+      }
+    },
+    {
+      "name": "admin-update-method-not-allowed",
+      "snapshot": {
+        "status_code": 405,
+        "content_type": "application/json",
+        "headers": {
+          "allow": "PUT"
+        },
+        "cookies": [],
+        "body": {
+          "timestamp": "<contract-ignored>",
+          "status": 405,
+          "error": "Method Not Allowed",
+          "path": "/api/v1/admin/featured-conversations/update"
+        }
+      }
+    },
+    {
+      "name": "admin-query-list-trailing-slash",
+      "snapshot": {
+        "status_code": 404,
+        "content_type": "application/json",
+        "headers": {},
+        "cookies": [],
+        "body": {
+          "timestamp": "<contract-ignored>",
+          "status": 404,
+          "error": "Not Found",
+          "path": "/api/v1/admin/featured-conversations/query-list/"
+        }
+      }
+    },
+    {
+      "name": "admin-online-extra-segment",
+      "snapshot": {
+        "status_code": 404,
+        "content_type": "application/json",
+        "headers": {},
+        "cookies": [],
+        "body": {
+          "timestamp": "<contract-ignored>",
+          "status": 404,
+          "error": "Not Found",
+          "path": "/api/v1/admin/featured-conversations/online/a/b"
+        }
+      }
+    }
+  ],
+  "skipped": []
+}

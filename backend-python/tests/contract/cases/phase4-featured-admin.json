@@ -1,0 +1,133 @@
+{
+  "cases": [
+    {
+      "name": "admin-query-list-lombok-defaults",
+      "method": "POST",
+      "path": "/api/v1/admin/featured-conversations/query-list",
+      "json_body": {},
+      "normalization": {
+        "ignored_json_pointers": [
+          "/body/data/total",
+          "/body/data/list"
+        ]
+      }
+    },
+    {
+      "name": "admin-query-list-bad-page-no-type",
+      "method": "POST",
+      "path": "/api/v1/admin/featured-conversations/query-list",
+      "json_body": { "pageNo": { "nested": 1 } },
+      "normalization": {
+        "ignored_json_pointers": ["/body/timestamp"]
+      }
+    },
+    {
+      "name": "admin-create-missing-body",
+      "method": "POST",
+      "path": "/api/v1/admin/featured-conversations/create",
+      "normalization": {
+        "ignored_json_pointers": ["/body/timestamp"]
+      }
+    },
+    {
+      "name": "admin-create-blank-session",
+      "method": "POST",
+      "path": "/api/v1/admin/featured-conversations/create",
+      "json_body": { "sessionId": "   " },
+      "normalization": {
+        "ignored_json_pointers": ["/body/timestamp"]
+      }
+    },
+    {
+      "name": "admin-create-bad-field-type",
+      "method": "POST",
+      "path": "/api/v1/admin/featured-conversations/create",
+      "json_body": { "sessionId": "s1", "sortOrder": "not-a-number" },
+      "normalization": {
+        "ignored_json_pointers": ["/body/timestamp"]
+      }
+    },
+    {
+      "name": "admin-update-missing-featured-id",
+      "method": "PUT",
+      "path": "/api/v1/admin/featured-conversations/update",
+      "json_body": { "title": "t" },
+      "normalization": {
+        "ignored_json_pointers": ["/body/timestamp"]
+      }
+    },
+    {
+      "name": "admin-update-unknown-featured-id",
+      "method": "PUT",
+      "path": "/api/v1/admin/featured-conversations/update",
+      "json_body": { "featuredId": "contract-no-such-featured", "title": "t" },
+      "normalization": {
+        "ignored_json_pointers": ["/body/timestamp"]
+      }
+    },
+    {
+      "name": "admin-online-missing-operator",
+      "method": "POST",
+      "path": "/api/v1/admin/featured-conversations/online/contract-no-such-featured",
+      "normalization": {
+        "ignored_json_pointers": ["/body/timestamp"]
+      }
+    },
+    {
+      "name": "admin-offline-missing-operator",
+      "method": "POST",
+      "path": "/api/v1/admin/featured-conversations/offline/contract-no-such-featured",
+      "normalization": {
+        "ignored_json_pointers": ["/body/timestamp"]
+      }
+    },
+    {
+      "name": "admin-online-unknown-row",
+      "method": "POST",
+      "path": "/api/v1/admin/featured-conversations/online/contract-no-such-featured",
+      "query": { "operator": "contract" }
+    },
+    {
+      "name": "admin-offline-unknown-row",
+      "method": "POST",
+      "path": "/api/v1/admin/featured-conversations/offline/contract-no-such-featured",
+      "query": { "operator": "contract" }
+    },
+    {
+      "name": "admin-create-method-not-allowed",
+      "method": "GET",
+      "path": "/api/v1/admin/featured-conversations/create",
+      "compared_headers": ["allow"],
+      "normalization": {
+        "ignored_json_pointers": ["/body/timestamp"]
+      }
+    },
+    {
+      "name": "admin-update-method-not-allowed",
+      "method": "GET",
+      "path": "/api/v1/admin/featured-conversations/update",
+      "compared_headers": ["allow"],
+      "normalization": {
+        "ignored_json_pointers": ["/body/timestamp"]
+      }
+    },
+    {
+      "name": "admin-query-list-trailing-slash",
+      "method": "POST",
+      "path": "/api/v1/admin/featured-conversations/query-list/",
+      "json_body": {},
+      "normalization": {
+        "ignored_json_pointers": ["/body/timestamp"]
+      }
+    },
+    {
+      "name": "admin-online-extra-segment",
+      "method": "POST",
+      "path": "/api/v1/admin/featured-conversations/online/a/b",
+      "json_body": {},
+      "normalization": {
+        "ignored_json_pointers": ["/body/timestamp"]
+      }
+    }
+  ]
+}

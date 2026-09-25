@@ -30,6 +30,9 @@ def create_app(
         await database.start()
         # Construction is I/O-free: health-only fakes (FakeDatabase) still boot.
         app.state.featured_query_use_case = _build_featured_use_case(database)
+        app.state.featured_admin_use_case = _build_featured_admin_use_case(
+            database, resolved_settings
+        )
         try:
             yield
         finally:
@@ -50,6 +53,7 @@ def create_app(
     install_exception_handlers(application)
     application.include_router(health_router)
     application.include_router(_featured_router())
+    application.include_router(_featured_admin_router())
     return application
 
 
@@ -59,6 +63,12 @@ def _featured_router() -> Any:
     )
 
     return featured_router
+
+
+def _featured_admin_router() -> Any:
+    from reactor_backend.api.routers.featured_admin import router as featured_admin_router
+
+    return featured_admin_router
 
 
 def _build_featured_use_case(database: Any) -> Any:
@@ -77,6 +87,24 @@ def _build_featured_use_case(database: Any) -> Any:
         ledger_reader=ExecutionLedgerRepository(database),
         model_window=LlmModelWindowResolver(database),
         history_projector=ReplayProjector(),
+    )
+
+
+def _build_featured_admin_use_case(database: Any, settings: Settings) -> Any:
+    from reactor_backend.application.featured_conversation_admin import (
+        FeaturedConversationAdminUseCase,
+        SettingsWriteOwnerFence,
+    )
+    from reactor_backend.infrastructure.repositories import (
+        ExecutionLedgerRepository,
+        FeaturedConversationRepository,
+    )
+
+    store = FeaturedConversationRepository(database)
+    return FeaturedConversationAdminUseCase(
+        store=store,
+        session_checker=ExecutionLedgerRepository(database),
+        fence=SettingsWriteOwnerFence(settings.featured_admin_write_owner),
     )
 
 

@@ -29,6 +29,7 @@ import json
 import re
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -275,15 +276,36 @@ def parse_upstream_attribution(access_log: Path) -> dict[str, str]:
     return latest
 
 
-def label_upstream(raw: str | None) -> str | None:
+def label_upstream(
+    raw: str | None,
+    *,
+    java_port: int = 8100,
+    python_port: int = 8200,
+) -> str | None:
+    """Map nginx's ``$upstream_addr`` token to ``java`` / ``python``.
+
+    Ports are parameters because the drill can bind either backend to a free
+    port when :8100/:8200 are already held; the defaults reproduce the phase-3B
+    behaviour exactly. An unrecognized token is returned verbatim so a third
+    upstream (or a port typo) is a hard routing violation rather than a silent
+    pass.
+    """
     if raw is None or raw == "none":
         return raw
-    if raw.endswith(":8200") or raw.endswith(":8100"):
-        return "python" if raw.endswith(":8200") else "java"
+    if raw.endswith(f":{python_port}"):
+        return "python"
+    if raw.endswith(f":{java_port}"):
+        return "java"
     return raw
 
 
-def run_probes(base_url: str, access_log: Path | None) -> list[ProbeResult]:
+def run_probes(
+    base_url: str,
+    access_log: Path | None,
+    *,
+    java_port: int = 8100,
+    python_port: int = 8200,
+) -> list[ProbeResult]:
     results: list[ProbeResult] = []
     with httpx.Client(base_url=base_url, trust_env=False, timeout=30.0) as client:
         for probe in PROBES:
@@ -324,7 +346,7 @@ def run_probes(base_url: str, access_log: Path | None) -> list[ProbeResult]:
                     headers=result.headers,
                     body=result.body,
                     elapsed_ms=result.elapsed_ms,
-                    upstream=label_upstream(raw),
+                    upstream=label_upstream(raw, java_port=java_port, python_port=python_port),
                     expected_upstream_after_cutover=result.expected_upstream_after_cutover,
                 )
             )
@@ -351,16 +373,25 @@ def summarize(results: list[ProbeResult]) -> dict[str, Any]:
 
 
 def compare_to_reference(
-    reference: list[ProbeResult], candidate: list[ProbeResult]
+    reference: list[ProbeResult],
+    candidate: list[ProbeResult],
+    *,
+    normalizer: Callable[[ProbeResult], str] | None = None,
 ) -> list[dict[str, Any]]:
     """Differences between two phases.
 
     Compares status code, the recorded headers and the *normalized* body. The
-    only tolerated nondeterminism is what ``NORMALIZED_POINTERS`` names (an
-    error-body clock and one generated UUID); anything else — a new header, a
-    changed status, a changed error shape — is a difference and must not be
-    waved through.
+    only tolerated nondeterminism is what the probe set's ``BASE_POINTERS``/
+    ``EXTRA_POINTERS`` name (an error-body clock and one generated UUID);
+    anything else — a new header, a changed status, a changed error shape — is a
+    difference and must not be waved through.
+
+    ``normalizer`` exists because :meth:`ProbeResult.normalized_body` resolves the
+    pointers of *this* module. A second probe set (admin_probes.py) that defines
+    its own ``normalized_body`` must pass it in, or the comparison silently drops
+    back to phase-3B's pointers and reports timestamps as regressions.
     """
+    norm = normalizer if normalizer is not None else ProbeResult.normalized_body
     differences: list[dict[str, Any]] = []
     ref_by_id = {r.id: r for r in reference}
     for cand in candidate:
@@ -386,13 +417,14 @@ def compare_to_reference(
                     "candidate": cand.headers,
                 }
             )
-        if ref.normalized_body() != cand.normalized_body():
+        ref_body, cand_body = norm(ref), norm(cand)
+        if ref_body != cand_body:
             differences.append(
                 {
                     "id": cand.id,
                     "reason": "body mismatch",
-                    "reference": ref.normalized_body(),
-                    "candidate": cand.normalized_body(),
+                    "reference": ref_body,
+                    "candidate": cand_body,
                 }
             )
     return differences
@@ -437,9 +469,26 @@ def main() -> int:
         default=None,
         help="previous phase's report; body/status/headers are compared against it",
     )
+    parser.add_argument(
+        "--java-upstream-port",
+        type=int,
+        default=8100,
+        help="port of the Java backend for upstream attribution (default 8100)",
+    )
+    parser.add_argument(
+        "--python-upstream-port",
+        type=int,
+        default=8200,
+        help="port of the Python backend for upstream attribution (default 8200)",
+    )
     args = parser.parse_args()
 
-    results = run_probes(args.base_url, args.access_log)
+    results = run_probes(
+        args.base_url,
+        args.access_log,
+        java_port=args.java_upstream_port,
+        python_port=args.python_upstream_port,
+    )
     report: dict[str, Any] = {
         "phase": args.phase,
         "base_url": args.base_url,

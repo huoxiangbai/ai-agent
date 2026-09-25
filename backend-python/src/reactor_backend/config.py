@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     mysql_pool_recycle_seconds: int = Field(default=1800, ge=30)
     database_ready_timeout_seconds: float = Field(default=3.0, gt=0, le=30)
 
+    # Layer 2 of the featured-admin writer fence. Default "java" is fail-closed:
+    # Python refuses every admin write before touching SQL until the operator flips
+    # this as part of the documented cutover order. Layer 1 is the per-writer MySQL
+    # account (reactor_py_featured_writer), which can only INSERT/UPDATE one table.
+    featured_admin_write_owner: str = "java"
+
     @property
     def sqlalchemy_database_url(self) -> str:
         if self.database_url is not None:
